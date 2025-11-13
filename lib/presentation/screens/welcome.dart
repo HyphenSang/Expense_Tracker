@@ -21,43 +21,50 @@ class WelcomeScreen extends StatelessWidget {
             child: Image.asset('assets/img/welcome_bg.png'),
           ),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xl + AppSpacing.lg),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Image.asset('', 
-                  width: media.width * 0.5,
-                  fit: BoxFit.cover,
+            child: CustomScrollView(
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.xl + AppSpacing.lg),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Image.asset('', 
+                        width: media.width * 0.5,
+                        fit: BoxFit.cover,
+                        ),
+                        SizedBox(height: media.height * 0.7 - (AppSpacing.xl + AppSpacing.lg)),
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Congue malesuada in ac justo, a tristique leo massa. Arcu leo leo urna risus.',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.gray500,
+                                    fontWeight: FontWeight.w400,
+                                ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppSpacing.lg * 2),
+                            PrimaryButton(
+                              text: 'Get Started', 
+                              onPressed: () {
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => AuthScreen()));
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
                   ),
-                  SizedBox(height: media.height * 0.7 - (AppSpacing.xl + AppSpacing.lg)),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Congue malesuada in ac justo, a tristique leo massa. Arcu leo leo urna risus.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: AppColors.gray500,
-                              fontWeight: FontWeight.w400,
-                          ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.lg * 2),
-                      PrimaryButton(
-                        text: 'Get Started', 
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => AuthScreen()));
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
-      ),
+      )
     );
   }
 }

@@ -2,26 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
-import 'package:expenses/presentation/screens/login.dart';
-import 'package:expenses/presentation/screens/regis.dart';
+import 'package:expenses/presentation/state/password_strength_indicator.dart';
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+class RegisScreen extends StatefulWidget {
+  const RegisScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  State<RegisScreen> createState() => _RegisScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
-  final _emailController = TextEditingController();
+class _RegisScreenState extends State<RegisScreen> {
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  PasswordStrengthData? _passwordStrengthData;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
+  void _regis() {
+    if (_formKey.currentState!.validate()) {
+      // Handle registration logic here
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const HomeScreen()));
+    }
+  }
   @override
   Widget build(BuildContext context) {
     var media = MediaQuery.sizeOf(context);
@@ -51,7 +59,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         children: [
                           SizedBox(height: media.height * 0.1),
                           Text(
-                            'Expenses xin chào!',
+                            'Chào, ${_usernameController.text} !',
                             style: Theme.of(context).textTheme.displaySmall?.copyWith(
                                   color: Colors.black,
                                   fontWeight: FontWeight.w700,
@@ -60,7 +68,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           SizedBox(height: AppSpacing.sm),
                           Text(
-                            'Nhập email để đăng nhập hoặc đăng ký',
+                            'Bạn là người mới? Hãy nhập mật khẩu để đăng ký',
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: AppColors.gray500,
                                   fontWeight: FontWeight.w400,
@@ -69,23 +77,41 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           SizedBox(height: AppSpacing.xxl),
                           TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
+                            controller: _passwordController,
+                            obscureText: true,
                             decoration: InputDecoration(
-                              labelText: 'Email',
-                              hintText: 'Nhập email của bạn',
-                              prefixIcon: const Icon(Icons.email_outlined),
+                              labelText: 'Mật khẩu',
+                              hintText: 'Nhập mật khẩu của bạn',
+                              prefixIcon: const Icon(Icons.lock_outlined),
                               filled: true,
                               fillColor: Colors.white,
                             ),
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Vui lòng nhập email';
+                              if (_passwordStrengthData == null) {
+                                return 'Vui lòng nhập mật khẩu';
                               }
-                              if (!value.contains('@')) {
-                                return 'Email không hợp lệ';
+                              if (!_passwordStrengthData!.hasMinLength) {
+                                return 'Mật khẩu phải có ít nhất 8 ký tự';
+                              }
+                              if (!_passwordStrengthData!.hasUpperCase) {
+                                return 'Mật khẩu phải có chữ hoa';
+                              }
+                              if (!_passwordStrengthData!.hasNumber) {
+                                return 'Mật khẩu phải có ít nhất một số';
+                              }
+                              if (!_passwordStrengthData!.hasSpecialChar) {
+                                return 'Mật khẩu phải có ít nhất một ký tự đặc biệt';
                               }
                               return null;
+                            },
+                          ),
+                          SizedBox(height: AppSpacing.md),
+                          PasswordStrengthIndicator(
+                            passwordController: _passwordController,
+                            onStrengthChanged: (data) {
+                              setState(() {
+                                _passwordStrengthData = data;
+                              });
                             },
                           ),
                           const Spacer(),
@@ -93,12 +119,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               SubButton(
-                                text: 'Tiếp tục',
+                                text: 'Đăng nhập',
                                 onPressed: () {
-                                  // if (_formKey.currentState!.validate()) {
-                                  // Handle login logic here
-                                  // }
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisScreen()));
+                                  _regis();
                                 },
                               ),
                               SizedBox(height: AppSpacing.xxl),
