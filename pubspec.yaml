@@ -46,6 +46,7 @@ dependencies:
   flutter_svg: ^2.2.2
   font_awesome_flutter: ^10.12.0
   flex_seed_scheme: ^3.6.1
+  supabase_flutter: ^2.10.3
 
 dev_dependencies:
   flutter_test:
@@ -70,21 +71,21 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-assets:
-  - assets/img/
+  assets:
+    - assets/img/
 
-fonts:
-  - family: Inter
-    fonts:
-      - asset: assets/font/Inter-Regular.ttf
-      - asset: assets/font/Inter-Medium.ttf
-        weight: 500
-      - asset: assets/font/Inter-SemiBold.ttf
-        weight: 600
-      - asset: assets/font/Inter-Bold.ttf
-        weight: 700
-      - asset: assets/font/Inter-Italic.ttf
-        style: italic
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/font/Inter-Regular.ttf
+        - asset: assets/font/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/font/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/font/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/font/Inter-Italic.ttf
+          style: italic
 
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package

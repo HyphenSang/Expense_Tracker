@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-/// Bảng màu được thiết kế lại với màu chủ đạo #D2F273
 class AppColors {
   // Core brand colors
   static const Color primary = Color(0xFFD2F273); // Màu chủ đạo: vàng xanh lá nhạt
@@ -39,9 +38,8 @@ class AppSpacing {
   static const double sm = 8.0;
   static const double md = 12.0;
   static const double lg = 16.0;
-  static const double xl = 20.0;
-  static const double xxl = 24.0;
-  static const double xxxl = 32.0;
+  static const double xl = 22.0;
+  static const double xxl = 26.0;
   
   // Padding chuẩn
   static const EdgeInsets paddingXS = EdgeInsets.all(xs);
@@ -65,7 +63,7 @@ class AppRadius {
   static const double sm = 8.0;
   static const double md = 12.0;
   static const double lg = 16.0;
-  static const double xl = 20.0;
+  static const double xl = 24.0;
   
   static const BorderRadius radiusXS = BorderRadius.all(Radius.circular(xs));
   static const BorderRadius radiusSM = BorderRadius.all(Radius.circular(sm));
@@ -81,7 +79,7 @@ class AppRadius {
 class AppShadows {
   static List<BoxShadow> get bottomNavShadow => [
     BoxShadow(
-      color: AppColors.gray200.withOpacity(0.5),
+      color: AppColors.gray200.withValues(alpha: 0.5),
       blurRadius: 10,
       offset: const Offset(0, -2),
     ),
@@ -89,7 +87,7 @@ class AppShadows {
   
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: AppColors.gray200.withOpacity(0.3),
+      color: AppColors.gray200.withValues(alpha: 0.3),
       blurRadius: 8,
       offset: const Offset(0, 2),
     ),
@@ -111,7 +109,7 @@ class AppGradients {
   static LinearGradient get reminderBanner => LinearGradient(
     colors: [
       AppColors.primaryLight,
-      AppColors.primary.withOpacity(0.3),
+      AppColors.primary.withValues(alpha: 0.3),
     ],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -515,10 +513,10 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: AppColors.darkSurface,
         elevation: 0,
-        shadowColor: Colors.black.withOpacity(0.3),
+        shadowColor: Colors.black.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: AppColors.gray700.withOpacity(0.5), width: 1),
+          side: BorderSide(color: AppColors.gray700.withValues(alpha: 0.5), width: 1),
         ),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       ),
@@ -609,7 +607,7 @@ class AppTheme {
       
       // Divider
       dividerTheme: DividerThemeData(
-        color: AppColors.gray700.withOpacity(0.5),
+        color: AppColors.gray700.withValues(alpha: 0.5),
         thickness: 1,
         space: 1,
         indent: 16,
@@ -629,7 +627,7 @@ class AppTheme {
       // Chip
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.darkSurfaceVariant,
-        selectedColor: AppColors.primary.withOpacity(0.2),
+        selectedColor: AppColors.primary.withValues(alpha: 0.2),
         disabledColor: AppColors.gray700,
         labelStyle: const TextStyle(
           fontFamily: 'Inter',

@@ -71,7 +71,7 @@ class ReminderBanner extends StatelessWidget {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.3),
+              color: AppColors.primary.withValues(alpha: 0.3),
               shape: BoxShape.circle,
             ),
             child: Icon(

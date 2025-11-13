@@ -174,7 +174,7 @@ class JarCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(AppSpacing.sm),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: AppRadius.radiusSM,
                 ),
                 child: Icon(icon, color: color, size: AppIconSizes.sm),
@@ -183,7 +183,7 @@ class JarCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: AppSpacing.xs / 2),
                   decoration: BoxDecoration(
-                    color: AppColors.warning.withOpacity(0.1),
+                    color: AppColors.warning.withValues(alpha: 0.1),
                     borderRadius: AppRadius.radiusXS,
                   ),
                   child: Text(

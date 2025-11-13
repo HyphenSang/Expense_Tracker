@@ -1,0 +1,20 @@
+services:
+  flutter:
+    build:
+      context: .
+      target: dev
+    container_name: expenses_flutter
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app:delegated
+      - flutter_pub_cache:/usr/local/flutter/.pub-cache
+      - flutter_tool:/usr/local/flutter/bin/cache
+    environment:
+      - CHROME_NO_SANDBOX=true
+    command: flutter run -d web-server --web-hostname=0.0.0.0 --web-port=8080
+
+volumes:
+  flutter_pub_cache:
+  flutter_tool:
+

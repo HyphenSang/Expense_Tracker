@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/common/theme.dart';
+import 'package:expenses/presentation/screens/welcome.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const HomeScreen(),
+      home: const WelcomeScreen(),
     );
   }
 }
