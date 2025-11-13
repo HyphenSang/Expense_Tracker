@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
+import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SupabaseConfig.initialize();
   runApp(const MyApp());
 }
 

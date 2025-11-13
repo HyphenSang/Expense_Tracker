@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
 import 'package:expenses/presentation/screens/login.dart';
 import 'package:expenses/presentation/screens/regis.dart';
@@ -15,11 +14,62 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
+  }
+
+  // Check if email exists in the system
+  Future<void> _checkEmailAndContinue() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Kiểm tra xem email đã được đăng ký chưa
+      // Bạn có thể sử dụng Supabase để kiểm tra trong database
+      // Hoặc thử đăng nhập với email này (nếu lỗi thì chưa có tài khoản)
+      
+      // Ví dụ: Thử đăng nhập với password rỗng để kiểm tra email
+      // (Cách này không an toàn, chỉ là ví dụ)
+      // Trong thực tế, bạn nên có một API endpoint riêng để kiểm tra
+      
+      // Tạm thời chuyển đến màn hình đăng ký
+      // Bạn có thể thay đổi logic này dựa trên yêu cầu của bạn
+      final email = _emailController.text.trim();
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RegisScreen(
+              email: email,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Có lỗi xảy ra: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -95,10 +145,7 @@ class _AuthScreenState extends State<AuthScreen> {
                               SubButton(
                                 text: 'Tiếp tục',
                                 onPressed: () {
-                                  // if (_formKey.currentState!.validate()) {
-                                  // Handle login logic here
-                                  // }
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisScreen()));
+                                  _checkEmailAndContinue();
                                 },
                               ),
                               SizedBox(height: AppSpacing.xxl),

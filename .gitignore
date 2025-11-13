@@ -23,15 +23,22 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
+# VS Code launch configuration (chứa credentials nhạy cảm)
+launch.json
+
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins-dependencies
+.flutter-plugins
+.packages
 .pub-cache/
 .pub/
 /build/
 /coverage/
+web/.dart_tool/
+linux/build/
 
 # Symbolication related
 app.*.symbols
@@ -40,6 +47,26 @@ app.*.symbols
 app.*.map.json
 
 # Android Studio will place build artifacts here
+/android/.gradle/
+/android/build/
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# iOS & macOS build artefacts
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/.symlinks/
+macos/Flutter/ephemeral/
+
+# Environment variables và secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Supabase local files
+.supabase/
+
