@@ -8,9 +8,78 @@ import 'package:expenses/presentation/widgets/reminder_banner.dart';
 import 'package:expenses/presentation/widgets/b_acc.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 import 'package:expenses/presentation/widgets/bot_nav.dart';
+import 'package:expenses/presentation/screens/all_transactions_screen.dart';
+import 'package:expenses/presentation/screens/analytics_screen.dart';
+import 'package:expenses/presentation/screens/profile_screen.dart';
+import 'package:expenses/presentation/screens/wallets_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int _currentIndex = 0;
+
+  void _onNavTap(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        // Home - đã ở đây rồi
+        break;
+      case 1:
+        // Wallets
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const WalletsScreen(),
+          ),
+        ).then((_) {
+          // Reset index khi quay lại
+          setState(() {
+            _currentIndex = 0;
+          });
+        });
+        break;
+      case 2:
+        // Add transaction (center button)
+        // TODO: Navigate to add transaction screen
+        break;
+      case 3:
+        // Analytics
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AnalyticsScreen(),
+          ),
+        ).then((_) {
+          // Reset index khi quay lại
+          setState(() {
+            _currentIndex = 0;
+          });
+        });
+        break;
+      case 4:
+        // Profile
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ProfileScreen(),
+          ),
+        ).then((_) {
+          // Reset index khi quay lại
+          setState(() {
+            _currentIndex = 0;
+          });
+        });
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +148,14 @@ class HomeScreen extends StatelessWidget {
                           time: 'Hôm qua',
                         ),
                       ],
+                      onViewAll: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AllTransactionsScreen(),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 80), // Space for bottom nav
                   ],
@@ -88,7 +165,10 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const HomeBottomNav(),
+      bottomNavigationBar: HomeBottomNav(
+        currentIndex: _currentIndex,
+        onTap: _onNavTap,
+      ),
     );
   }
 }
