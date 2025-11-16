@@ -8,11 +8,11 @@ import 'package:expenses/presentation/widgets/reminder_banner.dart';
 import 'package:expenses/presentation/widgets/b_acc.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 import 'package:expenses/presentation/widgets/bot_nav.dart';
-import 'package:expenses/presentation/screens/all_transactions_screen.dart';
-import 'package:expenses/presentation/screens/analytics_screen.dart';
-import 'package:expenses/presentation/screens/profile_screen.dart';
-import 'package:expenses/presentation/screens/wallets_screen.dart';
-import 'package:expenses/presentation/screens/add_transaction_screen.dart';
+import 'package:expenses/presentation/screens/all_transactions.dart';
+import 'package:expenses/presentation/screens/analytics.dart';
+import 'package:expenses/presentation/screens/profile.dart';
+import 'package:expenses/presentation/screens/wallets.dart';
+import 'package:expenses/presentation/screens/add_transaction.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});

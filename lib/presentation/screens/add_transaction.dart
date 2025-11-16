@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/presentation/screens/select_category_screen.dart';
-import 'package:expenses/presentation/screens/create_category_screen.dart';
+import 'package:expenses/presentation/screens/select_category.dart';
+import 'package:expenses/presentation/screens/create_category.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});

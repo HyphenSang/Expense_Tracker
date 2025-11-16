@@ -319,3 +319,4 @@ class _WalletCard extends StatelessWidget {
     );
   }
 }
+

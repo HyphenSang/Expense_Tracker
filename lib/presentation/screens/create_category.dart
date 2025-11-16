@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/presentation/screens/icon_picker_screen.dart';
+import 'package:expenses/presentation/screens/icon_picker.dart';
 
 class CreateCategoryScreen extends StatefulWidget {
   final String transactionType; // 'EXPENSE' or 'INCOME'
