@@ -12,6 +12,7 @@ import 'package:expenses/presentation/screens/all_transactions_screen.dart';
 import 'package:expenses/presentation/screens/analytics_screen.dart';
 import 'package:expenses/presentation/screens/profile_screen.dart';
 import 'package:expenses/presentation/screens/wallets_screen.dart';
+import 'package:expenses/presentation/screens/add_transaction_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -41,14 +42,32 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ).then((_) {
           // Reset index khi quay lại
-          setState(() {
-            _currentIndex = 0;
-          });
+          if (mounted) {
+            setState(() {
+              _currentIndex = 0;
+            });
+          }
         });
         break;
       case 2:
         // Add transaction (center button)
-        // TODO: Navigate to add transaction screen
+        try {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddTransactionScreen(),
+            ),
+          ).then((_) {
+            // Reset index khi quay lại
+            if (mounted) {
+              setState(() {
+                _currentIndex = 0;
+              });
+            }
+          });
+        } catch (e) {
+          debugPrint('Lỗi khi navigate đến AddTransactionScreen: $e');
+        }
         break;
       case 3:
         // Analytics
