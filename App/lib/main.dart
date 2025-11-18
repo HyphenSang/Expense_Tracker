@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
+import 'package:expenses/presentation/screens/home.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +19,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const WelcomeScreen(),
+      home: const HomeScreen(),
     );
   }
 }

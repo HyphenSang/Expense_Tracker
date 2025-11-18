@@ -1,0 +1,31 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.header {
+  background-color: #4a90e2;
+  color: white;
+  padding: 1rem;
+  text-align: center;
+}
+
+.sidebar {
+  background-color: #f4f4f4;
+  padding: 1rem;
+  width: 250px;
+}
+
+.content {
+  flex: 1;
+  padding: 2rem;
+  background-color: #ffffff;
+}
+
+.footer {
+  background-color: #4a90e2;
+  color: white;
+  text-align: center;
+  padding: 1rem;
+}

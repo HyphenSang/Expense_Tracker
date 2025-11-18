@@ -1,29 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
+import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
-import 'package:expenses/presentation/screens/login.dart';
-import 'package:expenses/presentation/screens/regis.dart';
+import 'package:expenses/service/auth_service.dart';
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  final String email;
+  const LoginScreen({super.key, required this.email});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
-  final _emailController = TextEditingController();
+class _LoginScreenState extends State<LoginScreen> {
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  // Check if email exists in the system
-  Future<void> _checkEmailAndContinue() async {
+  // Login
+  Future<void> _login() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -33,32 +35,31 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     try {
-      // Kiểm tra xem email đã được đăng ký chưa
-      // Bạn có thể sử dụng Supabase để kiểm tra trong database
-      // Hoặc thử đăng nhập với email này (nếu lỗi thì chưa có tài khoản)
-      
-      // Ví dụ: Thử đăng nhập với password rỗng để kiểm tra email
-      // (Cách này không an toàn, chỉ là ví dụ)
-      // Trong thực tế, bạn nên có một API endpoint riêng để kiểm tra
-      
-      // Tạm thời chuyển đến màn hình đăng ký
-      // Bạn có thể thay đổi logic này dựa trên yêu cầu của bạn
-      final email = _emailController.text.trim();
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => RegisScreen(
-              email: email,
-            ),
+      final response = await AuthService.signInWithPassword(
+        email: widget.email,
+        password: _passwordController.text,
+      );
+
+      if (response.user != null && mounted) {
+        // Login successfully
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đăng nhập thành công!'),
+            backgroundColor: AppColors.success,
           ),
+        );
+
+        // Navigate to Home screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Có lỗi xảy ra: ${e.toString()}'),
+            content: Text('Đăng nhập thất bại: ${e.toString()}'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -101,7 +102,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         children: [
                           SizedBox(height: media.height * 0.1),
                           Text(
-                            'Expenses xin chào!',
+                            'Mừng bạn trở lại!',
                             style: Theme.of(context).textTheme.displaySmall?.copyWith(
                                   color: Colors.black,
                                   fontWeight: FontWeight.w700,
@@ -110,7 +111,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           SizedBox(height: AppSpacing.sm),
                           Text(
-                            'Nhập email để đăng nhập hoặc đăng ký',
+                            'Để tiếp tục, hãy nhập mật khẩu để đăng nhập',
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   color: AppColors.gray500,
                                   fontWeight: FontWeight.w400,
@@ -119,21 +120,22 @@ class _AuthScreenState extends State<AuthScreen> {
                           ),
                           SizedBox(height: AppSpacing.xxl),
                           TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            enabled: !_isLoading,
                             decoration: InputDecoration(
-                              labelText: 'Email',
-                              hintText: 'Nhập email của bạn',
-                              prefixIcon: const Icon(Icons.email_outlined),
+                              labelText: 'Mật khẩu',
+                              hintText: 'Nhập mật khẩu của bạn',
+                              prefixIcon: const Icon(Icons.lock_outlined),
                               filled: true,
                               fillColor: Colors.white,
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
-                                return 'Vui lòng nhập email';
+                                return 'Vui lòng nhập mật khẩu';
                               }
-                              if (!value.contains('@')) {
-                                return 'Email không hợp lệ';
+                              if (value.length < 6) {
+                                return 'Mật khẩu phải có ít nhất 6 ký tự';
                               }
                               return null;
                             },
@@ -143,9 +145,9 @@ class _AuthScreenState extends State<AuthScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               SubButton(
-                                text: 'Tiếp tục',
+                                text: 'Đăng nhập',
                                 onPressed: () {
-                                  _checkEmailAndContinue();
+                                  _login();
                                 },
                               ),
                               SizedBox(height: AppSpacing.xxl),
