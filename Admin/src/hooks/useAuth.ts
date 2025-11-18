@@ -1,34 +1,14 @@
-import { useState } from 'react';
+import { useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 
 const useAuth = () => {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const context = useContext(AuthContext);
 
-    const login = async (credentials) => {
-        const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(credentials),
-        });
+  if (!context) {
+    throw new Error('useAuth phải được sử dụng trong AuthProvider');
+  }
 
-        if (response.ok) {
-            setIsAuthenticated(true);
-            return true;
-        } else {
-            return false;
-        }
-    };
-
-    const logout = () => {
-        setIsAuthenticated(false);
-    };
-
-    return {
-        isAuthenticated,
-        login,
-        logout,
-    };
+  return context;
 };
 
 export default useAuth;

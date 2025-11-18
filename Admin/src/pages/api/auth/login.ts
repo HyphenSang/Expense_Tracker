@@ -1,7 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
 const users = [
-  { username: 'admin', password: 'admin123' },
+  {
+    username: 'admin',
+    password: 'admin123',
+    email: 'admin@expenses.app',
+    role: 'admin'
+  }
 ];
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -13,8 +18,15 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     );
 
     if (user) {
-      // Here you would typically set a session or token
-      res.status(200).json({ message: 'Login successful' });
+      res.status(200).json({
+        message: 'Login successful',
+        token: 'demo-token',
+        user: {
+          username: user.username,
+          email: user.email,
+          role: user.role
+        }
+      });
     } else {
       res.status(401).json({ message: 'Invalid credentials' });
     }

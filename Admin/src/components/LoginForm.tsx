@@ -1,56 +1,80 @@
+import {
+  Alert,
+  Box,
+  Button,
+  Stack,
+  TextField,
+  Typography
+} from '@mui/material';
 import React, { useState } from 'react';
+import useAuth from '../hooks/useAuth';
 
-const LoginForm = () => {
+const LoginForm: React.FC = () => {
+  const { login } = useAuth();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
 
-        const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ username, password }),
-        });
-
-        if (res.ok) {
-            // Handle successful login (e.g., redirect to dashboard)
-            window.location.href = '/admin/dashboard';
-        } else {
-            const data = await res.json();
-            setError(data.message || 'Login failed');
+    try {
+      await login({ username, password });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsSubmitting(false);
         }
     };
 
     return (
-        <form onSubmit={handleSubmit}>
+    <Box component="form" onSubmit={handleSubmit}>
+      <Stack spacing={3}>
             <div>
-                <label htmlFor="username">Username</label>
-                <input
-                    type="text"
-                    id="username"
+          <Typography variant="subtitle2" color="text.secondary">
+            Tài khoản mặc định
+          </Typography>
+          <Typography variant="body2">
+            admin / <strong>admin123</strong>
+          </Typography>
+        </div>
+
+        <TextField
+          label="Tên đăng nhập"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+          onChange={(event) => setUsername(event.target.value)}
                     required
-                />
-            </div>
-            <div>
-                <label htmlFor="password">Password</label>
-                <input
+          fullWidth
+        />
+
+        <TextField
+          label="Mật khẩu"
                     type="password"
-                    id="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+          onChange={(event) => setPassword(event.target.value)}
                     required
-                />
-            </div>
-            {error && <p style={{ color: 'red' }}>{error}</p>}
-            <button type="submit">Login</button>
-        </form>
+          fullWidth
+        />
+
+        {error && (
+          <Alert severity="error" variant="outlined">
+            {error}
+          </Alert>
+        )}
+
+        <Button
+          type="submit"
+          variant="contained"
+          size="large"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Đang xử lý...' : 'Đăng nhập'}
+        </Button>
+      </Stack>
+    </Box>
     );
 };
 
