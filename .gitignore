@@ -1,24 +1,58 @@
-# ===== Global ignores =====
+####################################
+#            GLOBAL                #
+####################################
 .DS_Store
 Thumbs.db
-*.swp
-*.tmp
+ehthumbs.db
 *.log
+*.tmp
 *.lock
+*.sw?
+*.swo
 *.iml
+*.pid
+*.seed
 
-# IDE / editors
+####################################
+#            IDE / OS              #
+####################################
 .idea/
 .vscode/
+.vscode-test/
 .history/
+*.code-workspace
 
-# Environment & secrets
+####################################
+#        ENV & SECRETS             #
+####################################
 .env
 .env.*
-!.env.example
-!.env.local.example
+.env.local
+.env.*.local
+*.env
+*.pem
+*.key
+.supabase/
 
-# ===== Flutter app (App/) =====
+####################################
+#        BUILD ARTEFACTS           #
+####################################
+**/node_modules/
+**/.next/
+**/.turbo/
+**/.vercel/
+**/.swc/
+**/.vite/
+**/.parcel-cache/
+**/.cache/
+**/build/
+**/dist/
+**/coverage/
+**/out/
+
+####################################
+#        FLUTTER (App/)            #
+####################################
 App/.dart_tool/
 App/.flutter-plugins
 App/.flutter-plugins-dependencies
@@ -29,33 +63,43 @@ App/build/
 App/coverage/
 App/web/.dart_tool/
 App/linux/build/
-App/android/.gradle/
-App/android/build/
-App/android/app/debug
-App/android/app/profile
-App/android/app/release
-App/ios/Flutter/App.framework
-App/ios/Flutter/Flutter.framework
-App/ios/Flutter/Generated.xcconfig
+App/windows/flutter/ephemeral/
+App/macos/Flutter/ephemeral/
 App/ios/Flutter/ephemeral/
 App/ios/.symlinks/
-App/macos/Flutter/ephemeral/
-App/windows/flutter/ephemeral/
+App/android/.gradle/
+App/android/.cxx/
+App/android/build/
+App/android/app/debug/
+App/android/app/profile/
+App/android/app/release/
 App/.supabase/
 
-# ===== Next.js admin (Admin/) =====
-Admin/node_modules/
+####################################
+#        ADMIN (Node/Next)         #
+####################################
 Admin/.next/
 Admin/.turbo/
 Admin/.vercel/
-Admin/out/
 Admin/.swc/
+Admin/out/
+Admin/.cache/
+Admin/node_modules/
+Admin/dist/
+Admin/coverage/
+Admin/client/.next/
+Admin/client/.turbo/
+Admin/client/.vercel/
+Admin/client/.vite/
+Admin/client/node_modules/
+Admin/client/dist/
+Admin/client/.cache/
 
-# Docker / misc
+####################################
+#        DOCKER / MISC             #
+####################################
 docker/*.log
-*.pid
-
-# Generated files
-**/build/
-**/dist/
+docker-compose.override.yml
+*.pid.lock
+*.pidfile
 

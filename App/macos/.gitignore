@@ -5,3 +5,12 @@
 # Xcode-related
 **/dgph
 **/xcuserdata/
+**/xcshareddata/WorkspaceSettings.xcsettings
+**/DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+profile
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.pbxuser

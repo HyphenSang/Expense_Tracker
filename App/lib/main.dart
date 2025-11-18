@@ -3,6 +3,7 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
 import 'package:expenses/presentation/screens/home.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

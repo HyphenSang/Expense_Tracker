@@ -1,15 +1,20 @@
-# Miscellaneous
+# OS / Misc
 *.class
 *.log
 *.pyc
 *.swp
+*.swo
+*.pid
+*.pid.lock
 .DS_Store
+Thumbs.db
 .atom/
 .build/
 .buildlog/
 .history
 .svn/
 .swiftpm/
+.fvm/
 migrate_working_dir/
 
 # IntelliJ related
@@ -18,15 +23,11 @@ migrate_working_dir/
 *.iws
 .idea/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# VS Code launch configuration (chứa credentials nhạy cảm)
+# VS Code
+.vscode/
 launch.json
 
-# Flutter/Dart/Pub related
+# Flutter / Dart / Pub
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -37,35 +38,47 @@ launch.json
 .pub/
 /build/
 /coverage/
+/reports/
+/integration_test/screenshots/
 web/.dart_tool/
 linux/build/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
 
-# Symbolication related
+# Symbolication & obfuscation
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
+# Android artefacts
 /android/.gradle/
+/android/.cxx/
 /android/build/
 /android/app/debug
 /android/app/profile
 /android/app/release
+key.properties
+**/*.keystore
+**/*.jks
 
-# iOS & macOS build artefacts
+# iOS & macOS artefacts
 ios/Flutter/App.framework
 ios/Flutter/Flutter.framework
 ios/Flutter/Generated.xcconfig
 ios/Flutter/ephemeral/
 ios/.symlinks/
+ios/Runner/GeneratedPluginRegistrant.*
 macos/Flutter/ephemeral/
+macos/Pods/
+**/xcuserdata/
 
-# Environment variables và secrets
+# Environment variables & secrets
+*.env
 .env
+.env.*
 .env.local
 .env.*.local
-*.env
+*.pem
+*.key
 
 # Supabase local files
 .supabase/

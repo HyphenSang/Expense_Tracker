@@ -4,6 +4,7 @@
 *.moved-aside
 *.pbxuser
 *.perspectivev3
+*.xccheckout
 **/*sync/
 .sconsign.dblite
 .tags*
@@ -14,6 +15,7 @@ Icon?
 **/.symlinks/
 profile
 xcuserdata
+*.xcscmblueprint
 **/.generated/
 Flutter/App.framework
 Flutter/Flutter.framework
