@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/widgets/p_button.dart';
 import 'package:expenses/presentation/screens/auth.dart';
-import 'package:expenses/presentation/screens/home.dart'; // Tempted
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -47,7 +46,7 @@ class WelcomeScreen extends StatelessWidget {
                             PrimaryButton(
                               text: 'Get Started', 
                               onPressed: () {
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => AuthScreen())); // This page shoud navigates to AuthScreen 
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => AuthScreen()));
                               },
                             ),
                             const SizedBox(height: AppSpacing.lg),

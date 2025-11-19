@@ -3,6 +3,8 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
 import 'package:expenses/presentation/screens/login.dart';
 import 'package:expenses/presentation/screens/regis.dart';
+import 'package:expenses/core/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -32,25 +34,37 @@ class _AuthScreenState extends State<AuthScreen> {
       _isLoading = true;
     });
 
+    final email = _emailController.text.trim();
+
     try {
-      // Kiểm tra xem email đã được đăng ký chưa
-      // Bạn có thể sử dụng Supabase để kiểm tra trong database
-      // Hoặc thử đăng nhập với email này (nếu lỗi thì chưa có tài khoản)
-      
-      // Ví dụ: Thử đăng nhập với password rỗng để kiểm tra email
-      // (Cách này không an toàn, chỉ là ví dụ)
-      // Trong thực tế, bạn nên có một API endpoint riêng để kiểm tra
-      
-      // Tạm thời chuyển đến màn hình đăng ký
-      // Bạn có thể thay đổi logic này dựa trên yêu cầu của bạn
-      final email = _emailController.text.trim();
+      await SupabaseConfig.client.auth.signInWithOtp(
+        email: email,
+        shouldCreateUser: false,
+        emailRedirectTo: null,
+      );
+
       if (mounted) {
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => LoginScreen(
-              email: email,
-            ),
+          MaterialPageRoute(builder: (context) => LoginScreen(email: email)),
+        );
+      }
+    } on AuthException catch (authError) {
+      final errorMessage = authError.message.toLowerCase();
+      final isUserMissing = errorMessage.contains('not found') ||
+          errorMessage.contains('signups not allowed');
+      if (mounted && isUserMissing) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => RegisScreen(email: email)),
+        );
+        return;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error occurred: ${authError.message}'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -58,7 +72,7 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Có lỗi xảy ra: ${e.toString()}'),
+            content: Text('Error occurred: ${e.toString()}'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -144,6 +158,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             children: [
                               SubButton(
                                 text: 'Tiếp tục',
+                                isLoading: _isLoading,
                                 onPressed: () {
                                   _checkEmailAndContinue();
                                 },
