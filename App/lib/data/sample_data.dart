@@ -17,7 +17,9 @@ class SampleData {
   static const String monthlySaved = '15,500,000 ₫';
 
   /// Danh sách giao dịch gần đây
-  static List<TransactionItemData> get recentTransactions => [
+  static List<TransactionItemData> get recentTransactions {
+    final now = DateTime.now();
+    return [
         TransactionItemData(
           title: 'Mua sắm tại Coopmart',
           category: 'Thực phẩm',
@@ -25,6 +27,7 @@ class SampleData {
           icon: Icons.shopping_cart,
           color: AppColors.error,
           time: 'Hôm nay, 14:30',
+          occurredAt: now,
         ),
         TransactionItemData(
           title: 'Lương tháng 12',
@@ -33,6 +36,7 @@ class SampleData {
           icon: Icons.account_balance_wallet,
           color: AppColors.success,
           time: 'Hôm qua, 09:00',
+          occurredAt: now.subtract(const Duration(days: 1)),
         ),
         TransactionItemData(
           title: 'Xăng xe máy',
@@ -41,6 +45,7 @@ class SampleData {
           icon: Icons.local_gas_station,
           color: AppColors.warning,
           time: 'Hôm qua, 18:45',
+          occurredAt: now.subtract(const Duration(days: 1)),
         ),
         TransactionItemData(
           title: 'Netflix Premium',
@@ -49,6 +54,7 @@ class SampleData {
           icon: Icons.movie,
           color: AppColors.info,
           time: '2 ngày trước, 10:00',
+          occurredAt: now.subtract(const Duration(days: 2)),
         ),
         TransactionItemData(
           title: 'Cà phê với bạn',
@@ -57,6 +63,7 @@ class SampleData {
           icon: Icons.local_cafe,
           color: AppColors.warning,
           time: '2 ngày trước, 15:30',
+          occurredAt: now.subtract(const Duration(days: 2)),
         ),
         TransactionItemData(
           title: 'Tiền điện tháng 11',
@@ -65,6 +72,7 @@ class SampleData {
           icon: Icons.bolt,
           color: AppColors.error,
           time: '3 ngày trước, 08:00',
+          occurredAt: now.subtract(const Duration(days: 3)),
         ),
         TransactionItemData(
           title: 'Mua sách online',
@@ -73,6 +81,7 @@ class SampleData {
           icon: Icons.menu_book,
           color: AppColors.primary,
           time: '4 ngày trước, 20:15',
+          occurredAt: now.subtract(const Duration(days: 4)),
         ),
         TransactionItemData(
           title: 'Gửi tiết kiệm',
@@ -81,6 +90,7 @@ class SampleData {
           icon: Icons.savings,
           color: AppColors.success,
           time: '5 ngày trước, 14:00',
+          occurredAt: now.subtract(const Duration(days: 5)),
         ),
         TransactionItemData(
           title: 'Mua quà sinh nhật',
@@ -89,6 +99,7 @@ class SampleData {
           icon: Icons.card_giftcard,
           color: AppColors.primary,
           time: '6 ngày trước, 19:30',
+          occurredAt: now.subtract(const Duration(days: 6)),
         ),
         TransactionItemData(
           title: 'Tiền nước tháng 11',
@@ -97,8 +108,10 @@ class SampleData {
           icon: Icons.water_drop,
           color: AppColors.info,
           time: '1 tuần trước, 09:00',
+          occurredAt: now.subtract(const Duration(days: 7)),
         ),
       ];
+  }
 
   /// Nhãn ngày cho phần giao dịch gần đây
   static String get dateLabel {
