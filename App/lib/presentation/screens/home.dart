@@ -124,6 +124,9 @@ class _HomeScreenState extends State<HomeScreen> {
             setState(() {
               _currentIndex = index;
             });
+            if (index == 0) {
+              _loadDashboardData();
+            }
           }
         },
       ),

@@ -54,7 +54,7 @@ const ExpensesPage = () => {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
+      <Typography variant="h5" fontWeight={700} gutterBottom mb={3}>
         Quản lý chi tiêu
       </Typography>
 
@@ -75,9 +75,15 @@ const ExpensesPage = () => {
           <Box
             component="form"
             onSubmit={handleSubmit}
-            sx={{ p: 3, borderRadius: 4, border: '1px solid', borderColor: 'divider', backgroundColor: '#fff' }}
+            sx={{
+              p: 3,
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              backgroundColor: '#fff',
+            }}
           >
-            <Typography variant="h6" gutterBottom>
+            <Typography variant="h6" gutterBottom fontWeight={600}>
               Thêm chi tiêu mới
             </Typography>
             <Stack spacing={2}>
@@ -92,7 +98,17 @@ const ExpensesPage = () => {
               />
               <TextField label="Danh mục" name="category" value={form.category} onChange={handleChange} />
               <TextField label="Ghi chú" name="note" value={form.note} onChange={handleChange} multiline minRows={2} />
-              <Button type="submit" variant="contained" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={isSubmitting}
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  py: 1.25,
+                }}
+              >
                 {isSubmitting ? 'Đang tạo...' : 'Tạo chi tiêu'}
               </Button>
             </Stack>

@@ -34,7 +34,7 @@ const Sidebar = ({ open, onClose, drawerWidth, currentPath, variant = 'permanent
         width: drawerWidth,
         boxSizing: 'border-box',
         borderRight: 'none',
-        backgroundColor: '#0f172a',
+        backgroundColor: '#111827', // gray900
         color: '#fff',
         p: 2,
       },
@@ -42,10 +42,22 @@ const Sidebar = ({ open, onClose, drawerWidth, currentPath, variant = 'permanent
   >
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Avatar sx={{ bgcolor: 'primary.main', color: '#fff' }}>Ex</Avatar>
+        <Avatar
+          sx={{
+            bgcolor: '#D2F273', // primary
+            color: '#111827', // gray900
+            fontWeight: 700,
+            width: 48,
+            height: 48,
+          }}
+        >
+          Ex
+        </Avatar>
         <div>
-          <Typography fontWeight={700}>Expenses Admin</Typography>
-          <Typography variant="body2" color="rgba(255,255,255,0.7)">
+          <Typography fontWeight={700} fontSize="1rem">
+            Expenses Admin
+          </Typography>
+          <Typography variant="body2" color="rgba(255,255,255,0.7)" fontSize="0.75rem">
             Dashboard
           </Typography>
         </div>
@@ -69,13 +81,28 @@ const Sidebar = ({ open, onClose, drawerWidth, currentPath, variant = 'permanent
           sx={{
             borderRadius: 2,
             mb: 1,
+            color: 'rgba(255,255,255,0.7)',
             '&.Mui-selected': {
-              backgroundColor: 'rgba(255,255,255,0.12)',
+              backgroundColor: 'rgba(210, 242, 115, 0.15)',
+              color: '#D2F273',
+              '& .MuiListItemIcon-root': {
+                color: '#D2F273',
+              },
+            },
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.08)',
             },
           }}
         >
-          <ListItemIcon sx={{ color: '#fff' }}>{item.icon}</ListItemIcon>
-          <ListItemText primary={item.label} />
+          <ListItemIcon sx={{ color: currentPath === item.path ? '#D2F273' : 'rgba(255,255,255,0.7)', minWidth: 40 }}>
+            {item.icon}
+          </ListItemIcon>
+          <ListItemText
+            primary={item.label}
+            primaryTypographyProps={{
+              fontWeight: currentPath === item.path ? 600 : 400,
+            }}
+          />
         </ListItemButton>
       ))}
     </List>
@@ -84,13 +111,14 @@ const Sidebar = ({ open, onClose, drawerWidth, currentPath, variant = 'permanent
       sx={{
         p: 2,
         borderRadius: 3,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.1)',
       }}
     >
-      <Typography variant="subtitle2" gutterBottom>
+      <Typography variant="subtitle2" gutterBottom fontWeight={600}>
         Trạng thái Supabase
       </Typography>
-      <Typography variant="body2" color="rgba(255,255,255,0.7)">
+      <Typography variant="body2" color="rgba(255,255,255,0.7)" fontSize="0.75rem">
         Đang kết nối tới cơ sở dữ liệu
       </Typography>
     </Box>
@@ -98,4 +126,3 @@ const Sidebar = ({ open, onClose, drawerWidth, currentPath, variant = 'permanent
 );
 
 export default Sidebar;
-

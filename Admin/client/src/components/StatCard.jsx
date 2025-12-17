@@ -1,45 +1,69 @@
 import { Box, Card, CardContent, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 
-const StatCard = ({ label, value, trend, icon, color = 'primary.main' }) => (
-  <Card
-    elevation={0}
-    sx={{
-      borderRadius: 4,
-      border: '1px solid',
-      borderColor: 'divider',
-      background: 'linear-gradient(135deg, rgba(79,70,229,0.07), rgba(14,165,233,0.04))',
-    }}
-  >
-    <CardContent>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="body2" color="text.secondary">
-          {label}
-        </Typography>
-        <Box
-          sx={{
-            width: 40,
-            height: 40,
-            borderRadius: 2,
-            display: 'grid',
-            placeItems: 'center',
-            backgroundColor: `${color}20`,
-            color,
-          }}
-        >
-          {icon}
+const StatCard = ({ label, value, trend, icon, color = 'primary' }) => {
+  const getColorValue = (theme) => {
+    if (typeof color === 'string' && color.startsWith('#')) {
+      return color;
+    }
+    return theme.palette[color]?.main || theme.palette.primary.main;
+  };
+
+  const getBackgroundColor = (theme) => {
+    const colorValue = getColorValue(theme);
+    return alpha(colorValue, 0.1);
+  };
+
+  return (
+    <Card
+      elevation={0}
+      sx={{
+        borderRadius: 3,
+        border: '1px solid',
+        borderColor: 'divider',
+        backgroundColor: '#fff',
+        transition: 'all 0.2s ease',
+        '&:hover': {
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+          transform: 'translateY(-2px)',
+        },
+      }}
+    >
+      <CardContent>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" fontWeight={500} fontSize="0.875rem">
+            {label}
+          </Typography>
+          <Box
+            sx={(theme) => ({
+              width: 48,
+              height: 48,
+              borderRadius: 2,
+              display: 'grid',
+              placeItems: 'center',
+              backgroundColor: getBackgroundColor(theme),
+              color: getColorValue(theme),
+            })}
+          >
+            {icon}
+          </Box>
         </Box>
-      </Box>
-      <Typography variant="h4" fontWeight={700}>
-        {value}
-      </Typography>
-      {trend && (
-        <Typography variant="body2" color={trend.startsWith('+') ? 'success.main' : 'error.main'}>
-          {trend} so với tháng trước
+        <Typography variant="h4" fontWeight={700} color="text.primary" mb={0.5}>
+          {value}
         </Typography>
-      )}
-    </CardContent>
-  </Card>
-);
+        {trend && (
+          <Typography
+            variant="body2"
+            color={trend.startsWith('+') ? 'success.main' : 'error.main'}
+            fontWeight={500}
+            fontSize="0.75rem"
+          >
+            {trend} so với tháng trước
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 export default StatCard;
-

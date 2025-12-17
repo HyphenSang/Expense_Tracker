@@ -8,14 +8,12 @@ const UsersPage = () => {
   const { users, isLoading, error, refresh } = useDashboardStore();
 
   useEffect(() => {
-    if (!users.length) {
-      refresh();
-    }
-  }, [users.length, refresh]);
+    refresh();
+  }, [refresh]);
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
+      <Typography variant="h5" fontWeight={700} gutterBottom mb={2}>
         Quản lý người dùng
       </Typography>
       {error && (
@@ -23,7 +21,7 @@ const UsersPage = () => {
           {error}
         </Alert>
       )}
-      <UsersTable rows={users} loading={isLoading} />
+      <UsersTable rows={users || []} loading={isLoading} />
     </Box>
   );
 };

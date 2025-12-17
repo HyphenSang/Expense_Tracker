@@ -15,37 +15,37 @@ const getMonthRange = () => {
   };
 };
 
-const normalizeCategory = (expense) => {
-  if (!expense) return 'Khác';
-  return (
-    expense.category ||
-    expense.category_name ||
-    expense.categoryId ||
-    expense.category_id ||
-    'Khác'
-  );
-};
-
 const getOverview = async () => {
   const { from, to } = getMonthRange();
 
-  const expenseQuery = supabase
-    .from('expenses')
-    .select('amount,status,category,category_name,created_at')
-    .gte('created_at', from)
-    .lt('created_at', to);
+  // Query từ bảng transactions (thay vì expenses)
+  const transactionQuery = supabase
+    .from('transactions')
+    .select('amount, type, occurred_at')
+    .gte('occurred_at', from)
+    .lt('occurred_at', to);
 
-  const { data: expenses, error: expenseError } = await expenseQuery;
-  if (expenseError) {
-    throw createHttpError(expenseError.message, 400);
+  const { data: transactions, error: transactionError } = await transactionQuery;
+  if (transactionError) {
+    throw createHttpError(transactionError.message, 400);
   }
 
-  const expenseRows = expenses || [];
-  const totalExpenses = expenseRows.reduce((sum, item) => sum + (item.amount || 0), 0);
-  const pendingTransactions = expenseRows.filter((item) => item.status === 'pending').length;
+  const transactionRows = transactions || [];
+  
+  // Tính tổng chi tiêu (chỉ tính EXPENSE)
+  const totalExpenses = transactionRows
+    .filter((item) => item.type === 'EXPENSE')
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  
+  // Tổng số giao dịch
+  const totalTransactions = transactionRows.length;
+  
+  // Giao dịch chờ duyệt - không có trong schema hiện tại, trả về 0
+  const pendingTransactions = 0;
 
+  // Đếm số người dùng từ profiles
   const { count: userCount, error: userError } = await supabase
-    .from('users')
+    .from('profiles')
     .select('*', { count: 'exact', head: true });
 
   if (userError) {
@@ -54,7 +54,7 @@ const getOverview = async () => {
 
   return {
     totalExpenses,
-    totalTransactions: expenseRows.length,
+    totalTransactions,
     pendingTransactions,
     activeUsers: userCount || 0,
   };
@@ -62,11 +62,19 @@ const getOverview = async () => {
 
 const getCategoryBreakdown = async () => {
   const { from, to } = getMonthRange();
+  
+  // Query transactions kèm category name
   const { data, error } = await supabase
-    .from('expenses')
-    .select('amount,category,category_name,category_id')
-    .gte('created_at', from)
-    .lt('created_at', to);
+    .from('transactions')
+    .select(`
+      amount,
+      type,
+      category_id,
+      categories!inner(name)
+    `)
+    .eq('type', 'EXPENSE')
+    .gte('occurred_at', from)
+    .lt('occurred_at', to);
 
   if (error) {
     throw createHttpError(error.message, 400);
@@ -74,9 +82,10 @@ const getCategoryBreakdown = async () => {
 
   const rows = data || [];
 
-  const breakdown = rows.reduce((acc, expense) => {
-    const key = normalizeCategory(expense);
-    acc[key] = (acc[key] || 0) + (expense.amount || 0);
+  // Nhóm theo category name
+  const breakdown = rows.reduce((acc, transaction) => {
+    const categoryName = transaction.categories?.name || 'Khác';
+    acc[categoryName] = (acc[categoryName] || 0) + Number(transaction.amount || 0);
     return acc;
   }, {});
 
@@ -90,4 +99,3 @@ module.exports = {
   getOverview,
   getCategoryBreakdown,
 };
-
