@@ -15,8 +15,19 @@ const DashboardPage = () => {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-        <Button variant="contained" onClick={refresh} startIcon={<TrendingUpIcon />}>
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+        <Button
+          variant="contained"
+          onClick={refresh}
+          startIcon={<TrendingUpIcon />}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 600,
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+          }}
+        >
           Làm mới dữ liệu
         </Button>
       </Box>
@@ -50,7 +61,7 @@ const DashboardPage = () => {
                 value={overview.totalTransactions}
                 trend="+3%"
                 icon={<TrendingUpIcon />}
-                color="#ec4899"
+                color="info"
               />
             </Grid>
             <Grid item xs={12} md={3}>
@@ -58,7 +69,7 @@ const DashboardPage = () => {
                 label="Đang chờ duyệt"
                 value={overview.pendingTransactions}
                 icon={<PendingActionsIcon />}
-                color="#f97316"
+                color="warning"
               />
             </Grid>
             <Grid item xs={12} md={3}>
@@ -66,7 +77,7 @@ const DashboardPage = () => {
                 label="Người dùng hoạt động"
                 value={overview.activeUsers}
                 icon={<PeopleAltIcon />}
-                color="#14b8a6"
+                color="success"
               />
             </Grid>
           </Grid>
@@ -76,7 +87,7 @@ const DashboardPage = () => {
               <CategoryChart data={categoryBreakdown} />
             </Grid>
             <Grid item xs={12} lg={6}>
-              <RecentActivity items={expenses.slice(0, 5)} />
+              <RecentActivity items={(expenses || []).slice(0, 5)} />
             </Grid>
           </Grid>
         </>

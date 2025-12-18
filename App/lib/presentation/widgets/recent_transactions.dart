@@ -79,6 +79,7 @@ class TransactionItemData {
   final IconData icon;
   final Color color;
   final String time;
+  final DateTime? occurredAt; // Thêm để nhóm theo tháng
 
   TransactionItemData({
     required this.title,
@@ -87,6 +88,7 @@ class TransactionItemData {
     required this.icon,
     required this.color,
     required this.time,
+    this.occurredAt,
   });
 }
 

@@ -25,5 +25,15 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// Tạo dữ liệu demo cho bảng expenses (chỉ dùng trong môi trường phát triển)
+router.post('/demo-seed', async (req, res, next) => {
+  try {
+    const data = await expensesService.seedDemoExpenses();
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
 
