@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
+import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/common/theme.dart';
+import 'package:expenses/service/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,10 +17,14 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    // Kiểm tra auth state khi khởi động app
+    final isLoggedIn = AuthService.isLoggedIn;
+    
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: const WelcomeScreen(),
+      // Nếu đã đăng nhập → HomeScreen, nếu chưa → WelcomeScreen
+      home: isLoggedIn ? const HomeScreen() : const WelcomeScreen(),
     );
   }
 }

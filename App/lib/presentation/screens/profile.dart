@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/auth_service.dart';
 import 'package:expenses/service/user_service.dart';
 import 'package:expenses/presentation/screens/jar_settings.dart';
+import 'package:expenses/presentation/screens/welcome.dart';
 
 /// Màn hình hồ sơ người dùng.
 class ProfileScreen extends StatefulWidget {
@@ -66,20 +68,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Đăng xuất'),
-        content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        title: const Text(
+          'Đăng xuất',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.gray900,
+          ),
+        ),
+        content: const Text(
+          'Bạn có chắc chắn muốn đăng xuất?',
+          style: TextStyle(
+            color: AppColors.gray700,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+            ),
+            child: const Text(
+              'Hủy',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
             ),
-            child: const Text('Đăng xuất'),
+            child: const Text(
+              'Đăng xuất',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -93,7 +135,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await AuthService.signOut();
       if (!mounted) return;
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      
+      // Navigate về WelcomeScreen và xóa tất cả routes trước đó
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+        (route) => false, // Xóa tất cả routes trước đó
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
