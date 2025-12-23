@@ -3,13 +3,14 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/data/sample_data.dart';
 import 'package:expenses/service/expense_service.dart';
 
-/// Màn hình phân tích chi tiêu (Analytics).
-///
-/// Dùng lại các widget dashboard (6 hũ, giao dịch) nhưng trình bày
-/// theo góc nhìn phân tích: xu hướng, phân bổ, top categories.
-class AnalyticsScreen extends StatelessWidget {
+class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
+  @override
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/auth_service.dart';
 import 'package:expenses/service/user_service.dart';
-import 'package:expenses/presentation/screens/jar_settings.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
 
 /// Màn hình hồ sơ người dùng.
@@ -271,26 +270,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     content: Text('Tính năng quản lý thông báo sẽ được bổ sung sau'),
                   ),
                 );
-              },
-            ),
-            _buildSettingTile(
-              icon: Icons.savings_outlined,
-              title: 'Thiết lập chung các hũ',
-              subtitle: 'Quản lý và phân bổ % các hũ',
-              onTap: () async {
-                final changed = await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const JarSettingsScreen(),
-                  ),
-                );
-                if (changed == true && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Đã cập nhật cấu hình hũ.'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
               },
             ),
             _buildSettingTile(

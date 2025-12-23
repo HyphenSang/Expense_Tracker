@@ -12,9 +12,14 @@ import 'package:expenses/presentation/screens/auth.dart';
 import 'package:expenses/service/auth_service.dart';
 import 'package:expenses/presentation/screens/home.dart';
 
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   Widget build(BuildContext context) {
     final Size media = MediaQuery.sizeOf(context);

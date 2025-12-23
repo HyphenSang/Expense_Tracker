@@ -86,9 +86,50 @@ class JarModel {
 class JarService {
   static SupabaseClient get _client => SupabaseConfig.client;
 
+  /// Đảm bảo 6 hũ mặc định được tạo cho user (nếu chưa có)
+  static Future<void> ensureDefaultJars() async {
+    final user = AuthService.getUser();
+    if (user == null) throw StateError('Chưa đăng nhập');
+
+    // Kiểm tra xem user đã có hũ chưa
+    final existing = await _client
+        .from('jars')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+    if (existing.isEmpty) {
+      // Tạo 6 hũ mặc định với tỷ lệ chuẩn theo phương pháp JARS
+      final defaultJars = [
+        {'name': 'Nhu cầu thiết yếu', 'slug': 'necessities', 'percentage': 55, 'icon': 'home', 'color': '#EF4444'},
+        {'name': 'Tiết kiệm dài hạn', 'slug': 'long_term_savings', 'percentage': 10, 'icon': 'savings', 'color': '#3B82F6'},
+        {'name': 'Giáo dục', 'slug': 'education', 'percentage': 10, 'icon': 'school', 'color': '#F59E0B'},
+        {'name': 'Hưởng thụ', 'slug': 'play', 'percentage': 10, 'icon': 'celebration', 'color': '#8B5CF6'},
+        {'name': 'Tự do tài chính', 'slug': 'financial_freedom', 'percentage': 10, 'icon': 'account_balance_wallet', 'color': '#10B981'},
+        {'name': 'Cho đi', 'slug': 'give', 'percentage': 5, 'icon': 'favorite', 'color': '#EC4899'},
+      ];
+
+      for (final jar in defaultJars) {
+        await _client.from('jars').insert({
+          'user_id': user.id,
+          'name': jar['name'],
+          'slug': jar['slug'],
+          'percentage': jar['percentage'],
+          'balance': 0,
+          'icon': jar['icon'],
+          'color': jar['color'],
+          'is_active': true,
+        });
+      }
+    }
+  }
+
   static Future<List<JarModel>> fetchJars() async {
     final user = AuthService.getUser();
     if (user == null) throw StateError('Chưa đăng nhập');
+
+    // Đảm bảo 6 hũ mặc định được tạo
+    await ensureDefaultJars();
 
     final res = await _client
         .from('jars')
@@ -104,82 +145,135 @@ class JarService {
 
   /// Tự động cân bằng để tổng = 100, ưu tiên giữ “Nhu cầu thiết yếu”.
   static List<JarModel> autoBalance(List<JarModel> jars) {
-    // Xét tất cả các hũ đang active (bao gồm cả hũ dự phòng nếu có)
-    final activeJars = jars.where((j) => j.isActive).toList();
+    // Bỏ qua reserve nếu có slug = 'reserve'
+    final activeJars =
+        jars.where((j) => j.slug != 'reserve' && j.isActive).toList();
     if (activeJars.isEmpty) return jars;
 
     const String essentialSlug = 'necessities';
-    final originalEssential = activeJars
+    JarModel? essential = activeJars
         .firstWhere((j) => j.slug == essentialSlug, orElse: () => activeJars[0]);
-    JarModel essential = originalEssential;
 
     var others =
         activeJars.where((j) => j != essential).toList(growable: true);
 
-    // Clamp % âm về 0
-    essential = essential.copyWith(percentage: max(0, essential.percentage));
-    for (var i = 0; i < others.length; i++) {
-      final j = others[i];
-      others[i] = j.copyWith(percentage: max(0, j.percentage));
-    }
-
-    if (others.isEmpty) {
-      // Chỉ còn 1 hũ: cho = 100%
+    double total = activeJars.fold(0, (p, e) => p + e.percentage);
+    if (total == 0) {
+      // Nếu chưa có % nào, đặt essential = 100
       essential = essential.copyWith(percentage: 100);
       return [
         essential,
-        ...jars.where((j) => !j.isActive),
+        ...others.map((o) => o.copyWith(percentage: 0)),
+        ...jars.where((j) => !j.isActive || j.slug == 'reserve'),
       ];
     }
 
-    // Bước 1: giới hạn trần 55% cho hũ thiết yếu
-    double pEssential = min(55, essential.percentage);
+    // Làm tròn xuống nhẹ trước khi cân bằng
+    double diff = 100 - total;
+    // Nếu diff gần 0, giữ nguyên
+    if (diff.abs() <= 0.5) return jars;
 
-    // Bước 2: scale các hũ còn lại để tổng (others) = 100 - pEssential
-    final sumOthers = others.fold<double>(0, (p, e) => p + e.percentage);
-    final targetOthersTotal = max(0, 100 - pEssential);
-
-    if (sumOthers <= 0) {
-      // Nếu các hũ khác đều 0, chia đều phần còn lại
-      final per = targetOthersTotal / others.length;
-      others = others
-          .map((j) => j.copyWith(percentage: per))
-          .toList(growable: true);
+    if (diff > 0) {
+      // Thiếu %: phân bổ theo tỷ lệ hiện có (ưu tiên essential giữ vai trò lớn)
+      final sumAll = essential.percentage + others.fold(0.0, (p, e) => p + e.percentage);
+      if (sumAll == 0) {
+        essential = essential.copyWith(percentage: essential.percentage + diff);
+      } else {
+        final addEssential = diff * (essential.percentage / sumAll);
+        essential = essential.copyWith(percentage: essential.percentage + addEssential);
+        for (var i = 0; i < others.length; i++) {
+          final jar = others[i];
+          final add = diff * (jar.percentage / sumAll);
+          others[i] = jar.copyWith(percentage: jar.percentage + add);
+        }
+      }
     } else {
-      final factor = targetOthersTotal / sumOthers;
-      for (var i = 0; i < others.length; i++) {
-        final j = others[i];
-        others[i] = j.copyWith(percentage: j.percentage * factor);
+      // Thừa %: cắt theo tỷ lệ ở các hũ khác trước; nếu chưa đủ mới cắt essential
+      double remainCut = -diff;
+      final pool = others.fold(0.0, (p, e) => p + e.percentage);
+
+      if (pool > 0) {
+        double reduced = 0;
+        for (var i = 0; i < others.length; i++) {
+          final jar = others[i];
+          final share = jar.percentage / pool;
+          final cut = min(jar.percentage, remainCut * share);
+          others[i] = jar.copyWith(percentage: jar.percentage - cut);
+          reduced += cut;
+        }
+        remainCut = max(0, remainCut - reduced);
+      }
+
+      if (remainCut > 0) {
+        final cutEssential = min(essential.percentage, remainCut);
+        essential =
+            essential.copyWith(percentage: essential.percentage - cutEssential);
+        remainCut -= cutEssential;
       }
     }
 
-    // Cập nhật lại essential theo phần còn thiếu để tổng chính xác = 100
-    final othersTotal =
-        others.fold<double>(0, (p, e) => p + e.percentage);
-    pEssential = 100 - othersTotal;
-    essential = essential.copyWith(percentage: pEssential);
-
-    // Nếu do sai số khiến essential > 55 một chút, clamp và scale lại others lần cuối
-    if (essential.percentage > 55 + 0.01) {
+    // Giới hạn trần 55% cho hũ thiết yếu và phân phối phần dư sang hũ khác
+    if (essential.percentage > 55) {
       final extra = essential.percentage - 55;
       essential = essential.copyWith(percentage: 55);
       others = _redistributeExtra(others, extra);
     }
 
-    // Ghép lại đúng thứ tự ban đầu của các hũ active
-    final updatedActive = <JarModel>[];
-    var otherIndex = 0;
-    for (final j in activeJars) {
-      if (j == originalEssential) {
-        updatedActive.add(essential);
+    // Chuẩn hóa lần cuối để đúng 100 chính xác
+    double newTotal = essential.percentage + others.fold(0.0, (p, e) => p + e.percentage);
+    double adjust = 100 - newTotal;
+    
+    // Điều chỉnh để tổng = 100 chính xác
+    if (adjust.abs() > 0.01) {
+      if (adjust > 0) {
+        // Thiếu: thêm vào essential nếu chưa đạt trần, nếu không thì vào hũ lớn nhất
+        if (essential.percentage < 55) {
+          final addToEssential = min(adjust, 55 - essential.percentage);
+          essential = essential.copyWith(percentage: essential.percentage + addToEssential);
+          adjust -= addToEssential;
+        }
+        // Nếu còn dư, thêm vào hũ lớn nhất
+        if (adjust > 0 && others.isNotEmpty) {
+          final largestOther = others.reduce((a, b) => a.percentage > b.percentage ? a : b);
+          final largestIndex = others.indexOf(largestOther);
+          others[largestIndex] = largestOther.copyWith(percentage: largestOther.percentage + adjust);
+        }
       } else {
-        updatedActive.add(others[otherIndex++]);
+        // Thừa: giảm từ hũ lớn nhất (không phải essential)
+        if (others.isNotEmpty) {
+          final largestOther = others.reduce((a, b) => a.percentage > b.percentage ? a : b);
+          final largestIndex = others.indexOf(largestOther);
+          final cut = min(largestOther.percentage, -adjust);
+          others[largestIndex] = largestOther.copyWith(percentage: largestOther.percentage - cut);
+          adjust += cut;
+        }
+        // Nếu vẫn còn thừa, giảm từ essential
+        if (adjust < 0) {
+          essential = essential.copyWith(percentage: max(0, essential.percentage + adjust));
+        }
+      }
+    }
+    
+    // Kiểm tra lại tổng cuối cùng (làm tròn để tránh lỗi floating point)
+    double finalTotal = essential.percentage + others.fold(0.0, (p, e) => p + e.percentage);
+    final finalAdjust = (100 - finalTotal).roundToDouble();
+    if (finalAdjust.abs() > 0.01) {
+      // Điều chỉnh vào hũ lớn nhất để đảm bảo tổng = 100
+      if (finalAdjust > 0 && others.isNotEmpty) {
+        final largestOther = others.reduce((a, b) => a.percentage > b.percentage ? a : b);
+        final largestIndex = others.indexOf(largestOther);
+        others[largestIndex] = largestOther.copyWith(percentage: largestOther.percentage + finalAdjust);
+      } else if (finalAdjust < 0 && others.isNotEmpty) {
+        final largestOther = others.reduce((a, b) => a.percentage > b.percentage ? a : b);
+        final largestIndex = others.indexOf(largestOther);
+        others[largestIndex] = largestOther.copyWith(percentage: max(0, largestOther.percentage + finalAdjust));
       }
     }
 
     return [
-      ...updatedActive,
-      ...jars.where((j) => !j.isActive),
+      essential,
+      ...others,
+      ...jars.where((j) => !j.isActive || j.slug == 'reserve'),
     ];
   }
 
@@ -264,4 +358,3 @@ class JarService {
   }
 
 }
-

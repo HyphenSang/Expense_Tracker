@@ -4,9 +4,14 @@ import 'package:expenses/service/expense_service.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 
 /// Màn hình xem tất cả giao dịch, sắp xếp theo ngày (gần nhất ở trên).
-class AllTransactionsScreen extends StatelessWidget {
+class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({super.key});
 
+  @override
+  State<AllTransactionsScreen> createState() => _AllTransactionsScreenState();
+}
+
+class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
