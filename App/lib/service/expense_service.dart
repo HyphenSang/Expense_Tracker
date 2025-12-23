@@ -142,6 +142,72 @@ class ExpenseService {
     );
   }
 
+  /// Lấy tóm tắt số liệu cho tháng cụ thể.
+  static Future<ExpenseSummary> getSummaryForMonth({
+    required int year,
+    required int month,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      throw StateError('Chưa đăng nhập – không thể tải dữ liệu tài chính.');
+    }
+
+    final monthStart = DateTime(year, month, 1);
+    final monthEnd = DateTime(year, month + 1, 1);
+
+    // 1. Tổng số dư từ bảng wallets (luôn lấy hiện tại)
+    final walletsRes = await _client
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+    num totalBalance = 0;
+    for (final row in walletsRes) {
+      totalBalance += (row['balance'] as num?) ?? 0;
+    }
+
+    // 2. Thu/chi trong tháng được chọn
+    final txRes = await _client
+        .from('transactions')
+        .select('type, amount, occurred_at')
+        .eq('user_id', user.id)
+        .gte('occurred_at', monthStart.toIso8601String())
+        .lt('occurred_at', monthEnd.toIso8601String());
+
+    num income = 0;
+    num expense = 0;
+
+    for (final row in txRes) {
+      final type = row['type'] as String?;
+      final amount = (row['amount'] as num?) ?? 0;
+      if (type == 'INCOME') {
+        income += amount;
+      } else if (type == 'EXPENSE') {
+        expense += amount;
+      }
+    }
+
+    final saved = income - expense;
+
+    // Nếu chưa có dữ liệu, fallback sang sample
+    if (income == 0 && expense == 0 && totalBalance == 0) {
+      return const ExpenseSummary(
+        totalBalance: SampleData.totalBalance,
+        monthlyIncome: SampleData.monthlyIncome,
+        monthlyExpense: SampleData.monthlyExpense,
+        monthlySaved: SampleData.monthlySaved,
+      );
+    }
+
+    return ExpenseSummary(
+      totalBalance: _formatCurrency(totalBalance),
+      monthlyIncome: _formatCurrency(income),
+      monthlyExpense: _formatCurrency(expense),
+      monthlySaved: _formatCurrency(saved),
+    );
+  }
+
   /// Lấy danh sách giao dịch gần đây cho dashboard / analytics.
   static Future<List<TransactionItemData>> getRecentTransactions({
     int limit = 10,
@@ -467,6 +533,119 @@ class ExpenseService {
         thisYear == 0 &&
         lastYear == 0) {
       // Dữ liệu mẫu giống ảnh tham khảo
+      return const [
+        SpendingTrendItem(
+          label: 'Tuần này',
+          amount: '2.500.000 ₫',
+          changePercent: '12.5%',
+          isIncrease: false,
+        ),
+        SpendingTrendItem(
+          label: 'Tháng này',
+          amount: '8.500.000 ₫',
+          changePercent: '8.3%',
+          isIncrease: false,
+        ),
+        SpendingTrendItem(
+          label: 'Năm này',
+          amount: '95.000.000 ₫',
+          changePercent: '15.2%',
+          isIncrease: true,
+        ),
+      ];
+    }
+
+    return [
+      SpendingTrendItem(
+        label: 'Tuần này',
+        amount: _formatCurrency(thisWeek),
+        changePercent: pct(thisWeek, lastWeek),
+        isIncrease: isIncrease(thisWeek, lastWeek),
+      ),
+      SpendingTrendItem(
+        label: 'Tháng này',
+        amount: _formatCurrency(thisMonth),
+        changePercent: pct(thisMonth, lastMonth),
+        isIncrease: isIncrease(thisMonth, lastMonth),
+      ),
+      SpendingTrendItem(
+        label: 'Năm này',
+        amount: _formatCurrency(thisYear),
+        changePercent: pct(thisYear, lastYear),
+        isIncrease: isIncrease(thisYear, lastYear),
+      ),
+    ];
+  }
+
+  /// Lấy xu hướng chi tiêu cho tháng cụ thể.
+  static Future<List<SpendingTrendItem>> getSpendingTrendsForMonth({
+    required int year,
+    required int month,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      throw StateError('Chưa đăng nhập – không thể tải xu hướng chi tiêu.');
+    }
+
+    // Tính tháng trước
+    final prevMonth = month == 1 ? 12 : month - 1;
+    final prevYear = month == 1 ? year - 1 : year;
+
+    // Tháng được chọn
+    final selectedMonthStart = DateTime(year, month, 1);
+    final selectedMonthEnd = DateTime(year, month + 1, 1);
+
+    // Tháng trước
+    final prevMonthStart = DateTime(prevYear, prevMonth, 1);
+    final prevMonthEnd = selectedMonthStart;
+
+    // Năm được chọn
+    final selectedYearStart = DateTime(year, 1, 1);
+    final selectedYearEnd = DateTime(year + 1, 1, 1);
+
+    // Năm trước
+    final prevYearStart = DateTime(year - 1, 1, 1);
+    final prevYearEnd = selectedYearStart;
+
+    // Tuần này (tính từ tháng được chọn)
+    final now = DateTime(year, month, 15); // Giữa tháng để tính tuần
+    final thisWeekStart = now.subtract(Duration(days: now.weekday - 1));
+    final thisWeekEnd = thisWeekStart.add(const Duration(days: 7));
+    final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
+    final lastWeekEnd = thisWeekStart;
+
+    final userId = user.id;
+
+    Future<num> sumExpense(DateTime s, DateTime e) => _sumAmountInRange(
+          userId: userId,
+          start: s,
+          end: e,
+          type: 'EXPENSE',
+        );
+
+    final thisWeek = await sumExpense(thisWeekStart, thisWeekEnd);
+    final lastWeek = await sumExpense(lastWeekStart, lastWeekEnd);
+
+    final thisMonth = await sumExpense(selectedMonthStart, selectedMonthEnd);
+    final lastMonth = await sumExpense(prevMonthStart, prevMonthEnd);
+
+    final thisYear = await sumExpense(selectedYearStart, selectedYearEnd);
+    final lastYear = await sumExpense(prevYearStart, prevYearEnd);
+
+    String pct(num current, num previous) {
+      if (previous <= 0) return '0%';
+      final p = ((current - previous) / previous * 100).abs();
+      return '${p.toStringAsFixed(1)}%';
+    }
+
+    bool isIncrease(num current, num previous) => current > previous;
+
+    if (thisWeek == 0 &&
+        lastWeek == 0 &&
+        thisMonth == 0 &&
+        lastMonth == 0 &&
+        thisYear == 0 &&
+        lastYear == 0) {
       return const [
         SpendingTrendItem(
           label: 'Tuần này',

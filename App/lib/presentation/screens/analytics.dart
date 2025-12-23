@@ -11,139 +11,253 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  DateTime _selectedMonth = DateTime.now();
+  bool _isLoading = false;
+  ExpenseSummary? _summary;
+  List<CategorySpendingSummary>? _categories;
+  MonthlyComparison? _comparison;
+  List<SpendingTrendItem>? _trends;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalytics();
+  }
+
+  void _changeMonth(int delta) {
+    setState(() {
+      _selectedMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month + delta,
+      );
+    });
+    _loadAnalytics();
+  }
+
+  Future<void> _loadAnalytics() async {
+    setState(() => _isLoading = true);
+    try {
+      final summary = await ExpenseService.getSummaryForMonth(
+        year: _selectedMonth.year,
+        month: _selectedMonth.month,
+      );
+      final categories = await ExpenseService.getCategorySpendingForMonth(
+        year: _selectedMonth.year,
+        month: _selectedMonth.month,
+      );
+      final comparisonMap = await ExpenseService.getMonthComparison(
+        year: _selectedMonth.year,
+        month: _selectedMonth.month,
+      );
+      final trends = await ExpenseService.getSpendingTrendsForMonth(
+        year: _selectedMonth.year,
+        month: _selectedMonth.month,
+      );
+
+      // Convert Map to MonthlyComparison
+      final prevMonth = _selectedMonth.month == 1 ? 12 : _selectedMonth.month - 1;
+      final prevYear = _selectedMonth.month == 1 ? _selectedMonth.year - 1 : _selectedMonth.year;
+      final comparison = MonthlyComparison(
+        previousMonthLabel: 'Tháng $prevMonth/$prevYear',
+        currentMonthLabel: 'Tháng ${_selectedMonth.month}/${_selectedMonth.year}',
+        previousIncome: ExpenseService.formatCurrency(comparisonMap['previous']?['income'] ?? 0),
+        previousExpense: ExpenseService.formatCurrency(comparisonMap['previous']?['expense'] ?? 0),
+        currentIncome: ExpenseService.formatCurrency(comparisonMap['current']?['income'] ?? 0),
+        currentExpense: ExpenseService.formatCurrency(comparisonMap['current']?['expense'] ?? 0),
+      );
+
+      if (mounted) {
+        setState(() {
+          _summary = summary;
+          _categories = categories;
+          _comparison = comparison;
+          _trends = trends;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        // Fallback dữ liệu mẫu nếu có lỗi
+        setState(() {
+          _summary = const ExpenseSummary(
+            totalBalance: SampleData.totalBalance,
+            monthlyIncome: SampleData.monthlyIncome,
+            monthlyExpense: SampleData.monthlyExpense,
+            monthlySaved: SampleData.monthlySaved,
+          );
+          _categories = const [
+            CategorySpendingSummary(
+              name: 'Nhu cầu thiết yếu',
+              amount: 3500000,
+              percentage: 41.2,
+            ),
+            CategorySpendingSummary(
+              name: 'Giải trí',
+              amount: 2000000,
+              percentage: 23.5,
+            ),
+            CategorySpendingSummary(
+              name: 'Di chuyển',
+              amount: 1500000,
+              percentage: 17.6,
+            ),
+            CategorySpendingSummary(
+              name: 'Giáo dục',
+              amount: 1000000,
+              percentage: 11.8,
+            ),
+            CategorySpendingSummary(
+              name: 'Sức khỏe',
+              amount: 500000,
+              percentage: 5.9,
+            ),
+          ];
+          final prevMonth = _selectedMonth.month == 1 ? 12 : _selectedMonth.month - 1;
+          final prevYear = _selectedMonth.month == 1 ? _selectedMonth.year - 1 : _selectedMonth.year;
+          _comparison = MonthlyComparison(
+            previousMonthLabel: 'Tháng $prevMonth/$prevYear',
+            currentMonthLabel: 'Tháng ${_selectedMonth.month}/${_selectedMonth.year}',
+            previousIncome: '12.000.000 ₫',
+            previousExpense: '7.500.000 ₫',
+            currentIncome: '15.000.000 ₫',
+            currentExpense: '8.500.000 ₫',
+          );
+          _trends = const [
+            SpendingTrendItem(
+              label: 'Tuần này',
+              amount: '2.500.000 ₫',
+              changePercent: '12.5%',
+              isIncrease: false,
+            ),
+            SpendingTrendItem(
+              label: 'Tháng này',
+              amount: '8.500.000 ₫',
+              changePercent: '8.3%',
+              isIncrease: false,
+            ),
+            SpendingTrendItem(
+              label: 'Năm này',
+              amount: '95.000.000 ₫',
+              changePercent: '15.2%',
+              isIncrease: true,
+            ),
+          ];
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Không thể tải dữ liệu: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading && _summary == null) {
+      return const SafeArea(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final summary = _summary ?? const ExpenseSummary(
+      totalBalance: SampleData.totalBalance,
+      monthlyIncome: SampleData.monthlyIncome,
+      monthlyExpense: SampleData.monthlyExpense,
+      monthlySaved: SampleData.monthlySaved,
+    );
+    final categories = _categories ?? [];
+    final comparison = _comparison ?? const MonthlyComparison(
+      previousMonthLabel: 'Tháng 11',
+      currentMonthLabel: 'Tháng 12',
+      previousIncome: '12.000.000 ₫',
+      previousExpense: '7.500.000 ₫',
+      currentIncome: '15.000.000 ₫',
+      currentExpense: '8.500.000 ₫',
+    );
+    final trends = _trends ?? const [
+      SpendingTrendItem(
+        label: 'Tuần này',
+        amount: '2.500.000 ₫',
+        changePercent: '12.5%',
+        isIncrease: false,
+      ),
+      SpendingTrendItem(
+        label: 'Tháng này',
+        amount: '8.500.000 ₫',
+        changePercent: '8.3%',
+        isIncrease: false,
+      ),
+      SpendingTrendItem(
+        label: 'Năm này',
+        amount: '95.000.000 ₫',
+        changePercent: '15.2%',
+        isIncrease: true,
+      ),
+    ];
+
     return SafeArea(
-      child: FutureBuilder<(
-        ExpenseSummary,
-        List<CategorySpendingSummary>,
-        MonthlyComparison,
-        List<SpendingTrendItem>
-      )>(
-        future: _loadAnalytics(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          late ExpenseSummary summary;
-          late List<CategorySpendingSummary> categories;
-          late MonthlyComparison comparison;
-          late List<SpendingTrendItem> trends;
-
-          if (snapshot.hasError || !snapshot.hasData) {
-            // Fallback dữ liệu mẫu nếu có lỗi khi gọi Supabase
-            summary = const ExpenseSummary(
-              totalBalance: SampleData.totalBalance,
-              monthlyIncome: SampleData.monthlyIncome,
-              monthlyExpense: SampleData.monthlyExpense,
-              monthlySaved: SampleData.monthlySaved,
-            );
-            categories = const [
-              CategorySpendingSummary(
-                name: 'Nhu cầu thiết yếu',
-                amount: 3500000,
-                percentage: 41.2,
-              ),
-              CategorySpendingSummary(
-                name: 'Giải trí',
-                amount: 2000000,
-                percentage: 23.5,
-              ),
-              CategorySpendingSummary(
-                name: 'Di chuyển',
-                amount: 1500000,
-                percentage: 17.6,
-              ),
-              CategorySpendingSummary(
-                name: 'Giáo dục',
-                amount: 1000000,
-                percentage: 11.8,
-              ),
-              CategorySpendingSummary(
-                name: 'Sức khỏe',
-                amount: 500000,
-                percentage: 5.9,
-              ),
-            ];
-            comparison = const MonthlyComparison(
-              previousMonthLabel: 'Tháng 11',
-              currentMonthLabel: 'Tháng 12',
-              previousIncome: '12.000.000 ₫',
-              previousExpense: '7.500.000 ₫',
-              currentIncome: '15.000.000 ₫',
-              currentExpense: '8.500.000 ₫',
-            );
-            trends = const [
-              SpendingTrendItem(
-                label: 'Tuần này',
-                amount: '2.500.000 ₫',
-                changePercent: '12.5%',
-                isIncrease: false,
-              ),
-              SpendingTrendItem(
-                label: 'Tháng này',
-                amount: '8.500.000 ₫',
-                changePercent: '8.3%',
-                isIncrease: false,
-              ),
-              SpendingTrendItem(
-                label: 'Năm này',
-                amount: '95.000.000 ₫',
-                changePercent: '15.2%',
-                isIncrease: true,
-              ),
-            ];
-          } else {
-            (summary, categories, comparison, trends) = snapshot.data!;
-          }
-
-          return ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xl,
-              vertical: AppSpacing.lg,
-            ),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.lg,
+        ),
+        children: [
+          Text(
+            'Thống kê',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gray900,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Theo dõi thu nhập, chi tiêu và xu hướng tài chính của bạn.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.gray500,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          
+          // Month selector
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                'Thống kê',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.gray900,
-                    ),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => _changeMonth(-1),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Theo dõi thu nhập, chi tiêu và xu hướng tài chính của bạn.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.gray500,
-                    ),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Tháng ${_selectedMonth.month}/${_selectedMonth.year}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xl),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => _changeMonth(1),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xl),
               _IncomeExpenseRow(summary: summary),
               const SizedBox(height: AppSpacing.xl),
               _CategorySpendingCard(categories: categories),
               const SizedBox(height: AppSpacing.xl),
               _MonthlyComparisonCard(comparison: comparison),
               const SizedBox(height: AppSpacing.xl),
-              _SpendingTrendCard(trends: trends),
-            ],
-          );
-        },
+          _SpendingTrendCard(trends: trends),
+        ],
       ),
     );
-  }
-
-  Future<(
-    ExpenseSummary,
-    List<CategorySpendingSummary>,
-    MonthlyComparison,
-    List<SpendingTrendItem>
-  )> _loadAnalytics() async {
-    final summary = await ExpenseService.getSummary();
-    final categories = await ExpenseService.getCategorySpendingForCurrentMonth();
-    final comparison = await ExpenseService.getMonthlyComparison();
-    final trends = await ExpenseService.getSpendingTrends();
-    return (summary, categories, comparison, trends);
   }
 }
 

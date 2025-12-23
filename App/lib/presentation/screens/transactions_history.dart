@@ -101,6 +101,10 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
     final expense = _incomeExpense?['expense'] ?? 0;
     final change = _comparison?['change'] as Map<String, num>?;
     final expenseChange = change?['expense'] ?? 0;
+    final incomeChange = change?['income'] ?? 0;
+    
+    // Chọn change dựa trên card được chọn
+    final selectedChange = _isExpenseSelected ? expenseChange : incomeChange;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
@@ -181,8 +185,8 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          // Comparison bar
-          if (expenseChange != 0)
+          // Comparison bar - hiển thị so sánh theo card được chọn
+          if (selectedChange != 0)
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
@@ -199,9 +203,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
-                      expenseChange > 0
-                          ? 'Tăng ${ExpenseService.formatCurrency(expenseChange.abs())} so với cùng kỳ tháng trước'
-                          : 'Giảm ${ExpenseService.formatCurrency(expenseChange.abs())} so với cùng kỳ tháng trước',
+                      selectedChange > 0
+                          ? 'Tăng ${ExpenseService.formatCurrency(selectedChange.abs())} so với cùng kỳ tháng trước'
+                          : 'Giảm ${ExpenseService.formatCurrency(selectedChange.abs())} so với cùng kỳ tháng trước',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
