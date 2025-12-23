@@ -26,6 +26,7 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   bool _isSubCategory = true; // true: Danh mục con, false: Danh mục cha
   final Set<String> _expandedParents = {}; // Track expanded parent categories
   bool _isExpenseSelected = true; // true: Chi tiêu được chọn, false: Thu nhập được chọn
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -34,6 +35,12 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   }
 
   Future<void> _loadStatistics() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
     try {
       final incomeExpense = await ExpenseService.getIncomeExpenseForMonth(
         year: _selectedMonth.year,
@@ -58,6 +65,7 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
           _comparison = comparison;
           _categorySpending = categories;
           _categoryIncome = incomeCategories;
+          _isLoading = false;
         });
       }
     } catch (e) {
@@ -68,6 +76,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
             backgroundColor: AppColors.error,
           ),
         );
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -91,7 +102,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
         toolbarHeight: 0, // Bỏ khoảng trắng giữa AppBar và body
         elevation: 0,
       ),
-      body: _buildStatisticsTab(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _buildStatisticsTab(),
     );
   }
 
@@ -105,6 +118,11 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
     
     // Chọn change dựa trên card được chọn
     final selectedChange = _isExpenseSelected ? expenseChange : incomeChange;
+    
+    // Kiểm tra xem tháng được chọn có phải là tháng tương lai không
+    final now = DateTime.now();
+    final isFutureMonth = _selectedMonth.year > now.year || 
+        (_selectedMonth.year == now.year && _selectedMonth.month > now.month);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
@@ -185,8 +203,8 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          // Comparison bar - hiển thị so sánh theo card được chọn
-          if (selectedChange != 0)
+          // Comparison bar - chỉ hiển thị khi không phải tháng tương lai và có thay đổi
+          if (!isFutureMonth && selectedChange != 0)
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(

@@ -6,6 +6,7 @@ import 'package:expenses/presentation/screens/profile.dart';
 import 'package:expenses/presentation/screens/wallets.dart';
 import 'package:expenses/presentation/screens/transactions_history.dart';
 import 'package:expenses/presentation/screens/all_transactions.dart';
+import 'package:expenses/presentation/screens/notifications.dart';
 import 'package:expenses/presentation/widgets/bot_nav.dart';
 import 'package:expenses/presentation/widgets/header.dart';
 import 'package:expenses/presentation/widgets/jars.dart';
@@ -112,7 +113,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(75),
-        child: SafeArea(child: HomeHeader(username: username)),
+        child: SafeArea(
+          child: HomeHeader(
+            username: username,
+            onProfileTap: _navigateToProfileTab,
+            onNotificationsTap: _navigateToNotifications,
+          ),
+        ),
       ),
       body: _buildBodyForIndex(),
       bottomNavigationBar: HomeBottomNav(
@@ -149,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
           balance: _summary?.totalBalance ?? SampleData.totalBalance,
           isLinked: true,
         ),
-        onBankSelect: () {},
+        onBankSelect: _navigateToWalletsTab,
       ),
     );
   }
@@ -204,6 +211,31 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return _buildDashboardScroll();
     }
+  }
+
+  /// Điều hướng sang tab Ví/Tài khoản (bottom nav index 1)
+  void _navigateToWalletsTab() {
+    if (_currentIndex == 1) return;
+    setState(() {
+      _currentIndex = 1;
+    });
+  }
+
+  /// Điều hướng sang tab Hồ sơ (bottom nav index 4)
+  void _navigateToProfileTab() {
+    if (_currentIndex == 4) return;
+    setState(() {
+      _currentIndex = 4;
+    });
+  }
+
+  /// Điều hướng đến màn hình Thông báo
+  void _navigateToNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const NotificationsScreen(),
+      ),
+    );
   }
 
   void _openAddTransactionSheet() async {

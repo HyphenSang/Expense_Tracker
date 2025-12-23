@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
+import 'package:expenses/presentation/screens/profile.dart';
+import 'package:expenses/presentation/screens/notifications.dart';
 
 class HomeHeader extends StatelessWidget {
   final String username;
-  const HomeHeader({super.key, required this.username});
+  final VoidCallback? onProfileTap;
+  final VoidCallback? onNotificationsTap;
+  
+  const HomeHeader({
+    super.key,
+    required this.username,
+    this.onProfileTap,
+    this.onNotificationsTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -16,7 +26,17 @@ class HomeHeader extends StatelessWidget {
           Row(
             children: [
               InkWell(
-                onTap: () {},
+                onTap: () {
+                  if (onProfileTap != null) {
+                    onProfileTap!();
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ProfileScreen(),
+                      ),
+                    );
+                  }
+                },
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(AppRadius.xl),
                   topRight: Radius.circular(AppRadius.lg),
@@ -65,12 +85,22 @@ class HomeHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               IconButton(
-                onPressed: () {},
+                onPressed: null, // Vô hiệu hóa icon Settings
                 icon: Icon(Icons.settings_outlined, color: AppColors.gray900),
                 padding: EdgeInsets.zero,
               ),
               IconButton(
-                onPressed: () {},
+                onPressed: () {
+                  if (onNotificationsTap != null) {
+                    onNotificationsTap!();
+                  } else {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationsScreen(),
+                      ),
+                    );
+                  }
+                },
                 icon: Icon(Icons.notifications_outlined, color: AppColors.gray900),
                 padding: EdgeInsets.zero,
               ),

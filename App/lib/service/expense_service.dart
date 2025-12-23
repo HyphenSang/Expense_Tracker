@@ -270,6 +270,74 @@ class ExpenseService {
     return list;
   }
 
+  /// Lấy giao dịch theo tháng/năm (dành cho màn All Transactions).
+  static Future<List<TransactionItemData>> getTransactionsByMonth({
+    required int year,
+    required int month,
+    int limit = 1000,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      throw StateError('Chưa đăng nhập – không thể tải giao dịch.');
+    }
+
+    final start = DateTime(year, month, 1);
+    final end = DateTime(year, month + 1, 1);
+
+    final res = await _client
+        .from('transactions')
+        .select('type, amount, note, occurred_at, categories(name)')
+        .eq('user_id', user.id)
+        .gte('occurred_at', start.toIso8601String())
+        .lt('occurred_at', end.toIso8601String())
+        .order('occurred_at', ascending: false)
+        .limit(limit);
+
+    final list = <TransactionItemData>[];
+
+    for (final row in res as List) {
+      final type = row['type'] as String?;
+      final amount = (row['amount'] as num?) ?? 0;
+      final note = (row['note'] as String?) ?? 'Giao dịch';
+      final occurredAtStr = row['occurred_at'] as String?;
+      DateTime? occurredAt;
+      if (occurredAtStr != null) {
+        occurredAt = DateTime.tryParse(occurredAtStr)?.toLocal();
+      }
+
+      final isIncome = type == 'INCOME';
+      final categoryName = (row['categories'] as Map?)?['name'] as String? ??
+          (isIncome ? 'Thu nhập' : 'Chi tiêu');
+      final color = isIncome ? AppColors.success : AppColors.error;
+      final icon =
+          isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
+
+      // Format date và time
+      String timeLabel = '';
+      String dateLabel = '';
+      if (occurredAt != null) {
+        timeLabel =
+            '${occurredAt.hour.toString().padLeft(2, '0')}:${occurredAt.minute.toString().padLeft(2, '0')}';
+        dateLabel =
+            '${occurredAt.day}/${occurredAt.month}/${occurredAt.year}';
+      }
+
+      list.add(
+        TransactionItemData(
+          title: note,
+          category: categoryName,
+          amount: '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
+          icon: icon,
+          color: color,
+          time: '$timeLabel - $dateLabel',
+          occurredAt: occurredAt,
+        ),
+      );
+    }
+
+    return list;
+  }
+
   /// Lấy danh sách ví cho màn hình Wallets.
   static Future<List<WalletInfo>> getWallets() async {
     final user = _currentUser;
