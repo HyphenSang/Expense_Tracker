@@ -1,4 +1,4 @@
-import '../../domain/entities/user_profile_entity.dart';
+import '../../domain/entities/user_profile.dart';
 
 /// Data model cho UserProfile (DTO từ Supabase)
 class UserProfileModel extends UserProfileEntity {

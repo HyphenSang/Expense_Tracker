@@ -1,5 +1,5 @@
-import '../entities/transaction_entity.dart';
-import '../repositories/transaction_repository.dart';
+import '../../entities/transaction.dart';
+import '../../repositories/transaction.dart';
 
 /// Use case để tạo giao dịch mới
 class CreateTransaction {

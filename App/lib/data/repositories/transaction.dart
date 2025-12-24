@@ -1,10 +1,10 @@
-import '../../domain/entities/transaction_entity.dart';
-import '../../domain/repositories/transaction_repository.dart';
-import '../datasources/supabase_datasource.dart';
-import '../models/transaction_model.dart';
+import '../../domain/entities/transaction.dart';
+import '../../domain/repositories/transaction.dart' as domain;
+import '../datasources/supabase.dart';
+import '../models/transaction.dart';
 
 /// Implementation của TransactionRepository
-class TransactionRepositoryImpl implements TransactionRepository {
+class TransactionRepositoryImpl implements domain.TransactionRepository {
   final SupabaseDataSource _dataSource;
 
   TransactionRepositoryImpl(this._dataSource);

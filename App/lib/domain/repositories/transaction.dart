@@ -1,4 +1,4 @@
-import '../entities/transaction_entity.dart';
+import '../entities/transaction.dart';
 
 /// Repository interface cho Transaction trong domain layer
 abstract class TransactionRepository {

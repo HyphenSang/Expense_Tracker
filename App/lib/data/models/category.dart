@@ -1,4 +1,4 @@
-import '../../domain/entities/category_entity.dart';
+import '../../domain/entities/category.dart';
 
 /// Data model cho Category (DTO từ Supabase)
 class CategoryModel extends CategoryEntity {

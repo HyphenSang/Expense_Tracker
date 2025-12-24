@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/data/sample_data.dart';
 import 'package:expenses/service/expense_service.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -13,6 +12,7 @@ class AnalyticsScreen extends StatefulWidget {
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
   DateTime _selectedMonth = DateTime.now();
   bool _isLoading = false;
+  String? _error;
   ExpenseSummary? _summary;
   List<CategorySpendingSummary>? _categories;
   MonthlyComparison? _comparison;
@@ -37,22 +37,30 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   Future<void> _loadAnalytics() async {
     setState(() => _isLoading = true);
     try {
-      final summary = await ExpenseService.getSummaryForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final categories = await ExpenseService.getCategorySpendingForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final comparisonMap = await ExpenseService.getMonthComparison(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final trends = await ExpenseService.getSpendingTrendsForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
+      
+      final results = await Future.wait([
+        ExpenseService.getSummaryForMonth(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        ExpenseService.getCategorySpendingForMonth(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        ExpenseService.getMonthComparison(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        ExpenseService.getSpendingTrendsForMonth(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+      ]);
+
+      final summary = results[0] as ExpenseSummary;
+      final categories = results[1] as List<CategorySpendingSummary>;
+      final comparisonMap = results[2] as Map<String, dynamic>;
+      final trends = results[3] as List<SpendingTrendItem>;
 
       // Convert Map to MonthlyComparison
       final prevMonth = _selectedMonth.month == 1 ? 12 : _selectedMonth.month - 1;
@@ -77,71 +85,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        // Fallback dữ liệu mẫu nếu có lỗi
         setState(() {
-          _summary = const ExpenseSummary(
-            totalBalance: SampleData.totalBalance,
-            monthlyIncome: SampleData.monthlyIncome,
-            monthlyExpense: SampleData.monthlyExpense,
-            monthlySaved: SampleData.monthlySaved,
-          );
-          _categories = const [
-            CategorySpendingSummary(
-              name: 'Nhu cầu thiết yếu',
-              amount: 3500000,
-              percentage: 41.2,
-            ),
-            CategorySpendingSummary(
-              name: 'Giải trí',
-              amount: 2000000,
-              percentage: 23.5,
-            ),
-            CategorySpendingSummary(
-              name: 'Di chuyển',
-              amount: 1500000,
-              percentage: 17.6,
-            ),
-            CategorySpendingSummary(
-              name: 'Giáo dục',
-              amount: 1000000,
-              percentage: 11.8,
-            ),
-            CategorySpendingSummary(
-              name: 'Sức khỏe',
-              amount: 500000,
-              percentage: 5.9,
-            ),
-          ];
-          final prevMonth = _selectedMonth.month == 1 ? 12 : _selectedMonth.month - 1;
-          final prevYear = _selectedMonth.month == 1 ? _selectedMonth.year - 1 : _selectedMonth.year;
-          _comparison = MonthlyComparison(
-            previousMonthLabel: 'Tháng $prevMonth/$prevYear',
-            currentMonthLabel: 'Tháng ${_selectedMonth.month}/${_selectedMonth.year}',
-            previousIncome: '12.000.000 ₫',
-            previousExpense: '7.500.000 ₫',
-            currentIncome: '15.000.000 ₫',
-            currentExpense: '8.500.000 ₫',
-          );
-          _trends = const [
-            SpendingTrendItem(
-              label: 'Tuần này',
-              amount: '2.500.000 ₫',
-              changePercent: '12.5%',
-              isIncrease: false,
-            ),
-            SpendingTrendItem(
-              label: 'Tháng này',
-              amount: '8.500.000 ₫',
-              changePercent: '8.3%',
-              isIncrease: false,
-            ),
-            SpendingTrendItem(
-              label: 'Năm này',
-              amount: '95.000.000 ₫',
-              changePercent: '15.2%',
-              isIncrease: true,
-            ),
-          ];
+          _error = 'Không thể tải dữ liệu: $e';
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -156,47 +101,64 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading && _summary == null) {
+    // Hiển thị lỗi nếu có
+    if (_error != null && _summary == null) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: AppColors.error,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Không thể tải dữ liệu',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.gray900,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.gray600,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _error = null;
+                    });
+                    _loadAnalytics();
+                  },
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Nếu chưa có dữ liệu và đang loading
+    if (_summary == null) {
       return const SafeArea(
         child: Center(child: CircularProgressIndicator()),
       );
     }
 
-    final summary = _summary ?? const ExpenseSummary(
-      totalBalance: SampleData.totalBalance,
-      monthlyIncome: SampleData.monthlyIncome,
-      monthlyExpense: SampleData.monthlyExpense,
-      monthlySaved: SampleData.monthlySaved,
-    );
+    final summary = _summary!;
     final categories = _categories ?? [];
-    final comparison = _comparison ?? const MonthlyComparison(
-      previousMonthLabel: 'Tháng 11',
-      currentMonthLabel: 'Tháng 12',
-      previousIncome: '12.000.000 ₫',
-      previousExpense: '7.500.000 ₫',
-      currentIncome: '15.000.000 ₫',
-      currentExpense: '8.500.000 ₫',
-    );
-    final trends = _trends ?? const [
-      SpendingTrendItem(
-        label: 'Tuần này',
-        amount: '2.500.000 ₫',
-        changePercent: '12.5%',
-        isIncrease: false,
-      ),
-      SpendingTrendItem(
-        label: 'Tháng này',
-        amount: '8.500.000 ₫',
-        changePercent: '8.3%',
-        isIncrease: false,
-      ),
-      SpendingTrendItem(
-        label: 'Năm này',
-        amount: '95.000.000 ₫',
-        changePercent: '15.2%',
-        isIncrease: true,
-      ),
-    ];
+    final comparison = _comparison;
+    final trends = _trends ?? [];
 
     return SafeArea(
       child: ListView(
@@ -221,13 +183,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           ),
           const SizedBox(height: AppSpacing.xl),
           
-          // Month selector
+          // Month selector - Luôn hiển thị
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
-                onPressed: () => _changeMonth(-1),
+                onPressed: _isLoading ? null : () => _changeMonth(-1),
               ),
               Row(
                 children: [
@@ -243,18 +205,33 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
-                onPressed: () => _changeMonth(1),
+                onPressed: _isLoading ? null : () => _changeMonth(1),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
-              _IncomeExpenseRow(summary: summary),
-              const SizedBox(height: AppSpacing.xl),
+          
+          // Nội dung - Hiển thị loading ở dưới nếu đang load
+          if (_isLoading)
+            const SizedBox(
+              height: 200,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+            _IncomeExpenseRow(summary: summary),
+            const SizedBox(height: AppSpacing.xl),
+            if (categories.isNotEmpty) ...[
               _CategorySpendingCard(categories: categories),
               const SizedBox(height: AppSpacing.xl),
+            ],
+            if (comparison != null) ...[
               _MonthlyComparisonCard(comparison: comparison),
               const SizedBox(height: AppSpacing.xl),
-          _SpendingTrendCard(trends: trends),
+            ],
+            if (trends.isNotEmpty) ...[
+              _SpendingTrendCard(trends: trends),
+            ],
+          ],
         ],
       ),
     );

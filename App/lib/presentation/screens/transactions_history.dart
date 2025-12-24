@@ -42,22 +42,30 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
     }
 
     try {
-      final incomeExpense = await ExpenseService.getIncomeExpenseForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final comparison = await ExpenseService.getMonthComparison(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final categories = await ExpenseService.getCategorySpendingForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final incomeCategories = await ExpenseService.getCategoryIncomeForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
+      // Chạy tất cả API calls song song để tăng tốc độ load
+      final results = await Future.wait([
+        ExpenseService.getIncomeExpenseForMonth(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        ExpenseService.getMonthComparison(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        ExpenseService.getCategorySpendingForMonth(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        ExpenseService.getCategoryIncomeForMonth(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+      ]);
+
+      final incomeExpense = results[0] as Map<String, num>;
+      final comparison = results[1] as Map<String, dynamic>;
+      final categories = results[2] as List<CategorySpendingSummary>;
+      final incomeCategories = results[3] as List<CategorySpendingSummary>;
 
       if (mounted) {
         setState(() {
@@ -102,9 +110,7 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
         toolbarHeight: 0, // Bỏ khoảng trắng giữa AppBar và body
         elevation: 0,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildStatisticsTab(),
+      body: _buildStatisticsTab(),
     );
   }
 
@@ -129,7 +135,7 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tình hình thu chi
+          // Tình hình thu chi - Luôn hiển thị
           Text(
             'Tình hình thu chi',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -139,13 +145,13 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          // Date selector
+          // Date selector - Luôn hiển thị
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
-                onPressed: () => _changeMonth(-1),
+                onPressed: _isLoading ? null : () => _changeMonth(-1),
               ),
               Row(
                 children: [
@@ -161,13 +167,20 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
-                onPressed: () => _changeMonth(1),
+                onPressed: _isLoading ? null : () => _changeMonth(1),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
 
-          // Income/Expense cards
+          // Nội dung - Hiển thị loading ở dưới nếu đang load
+          if (_isLoading)
+            const SizedBox(
+              height: 200,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+                // Income/Expense cards
           Row(
             children: [
               Expanded(
@@ -309,8 +322,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
                           color: cat.color,
                           isSubCategory: true,
                         )).toList()
-                  : // Hiển thị danh mục cha (nhóm)
-                    _buildParentCategories(_categoryIncome!)),
+                    : // Hiển thị danh mục cha (nhóm)
+                      _buildParentCategories(_categoryIncome!)),
+              ],
             ],
           ],
         ],
@@ -768,4 +782,3 @@ class _ParentCategoryItem extends StatelessWidget {
     );
   }
 }
-

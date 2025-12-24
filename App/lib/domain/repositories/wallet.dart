@@ -1,4 +1,4 @@
-import '../entities/wallet_entity.dart';
+import '../entities/wallet.dart';
 
 /// Repository interface cho Wallet trong domain layer
 abstract class WalletRepository {

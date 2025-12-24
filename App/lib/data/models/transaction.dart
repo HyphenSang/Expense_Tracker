@@ -1,4 +1,4 @@
-import '../../domain/entities/transaction_entity.dart';
+import '../../domain/entities/transaction.dart';
 
 /// Data model cho Transaction (DTO từ Supabase)
 class TransactionModel extends TransactionEntity {

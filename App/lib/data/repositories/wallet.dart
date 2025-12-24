@@ -1,10 +1,10 @@
-import '../../domain/entities/wallet_entity.dart';
-import '../../domain/repositories/wallet_repository.dart';
-import '../datasources/supabase_datasource.dart';
-import '../models/wallet_model.dart';
+import '../../domain/entities/wallet.dart';
+import '../../domain/repositories/wallet.dart' as domain;
+import '../datasources/supabase.dart';
+import '../models/wallet.dart';
 
 /// Implementation của WalletRepository
-class WalletRepositoryImpl implements WalletRepository {
+class WalletRepositoryImpl implements domain.WalletRepository {
   final SupabaseDataSource _dataSource;
 
   WalletRepositoryImpl(this._dataSource);

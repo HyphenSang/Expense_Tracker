@@ -15,7 +15,7 @@ class SixJarsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jarData = jars.isEmpty ? SampleData.jars : jars;
+    final jarData = jars;
     final jarPairs = <List<JarData>>[];
     for (var i = 0; i < jarData.length; i += 2) {
       final pair = <JarData>[jarData[i]];

@@ -48,6 +48,7 @@ dependencies:
   flex_seed_scheme: ^3.6.1
   supabase_flutter: ^2.10.3
   flutter_dotenv: ^6.0.0
+  shared_preferences: ^2.3.3
 
 dev_dependencies:
   flutter_test:

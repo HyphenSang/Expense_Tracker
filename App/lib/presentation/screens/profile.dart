@@ -4,6 +4,10 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/auth_service.dart';
 import 'package:expenses/service/user_service.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
+import 'package:expenses/presentation/screens/help.dart';
+import 'package:expenses/presentation/screens/notifications.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/usecases/preference/get_notifications_enabled.dart';
 
 /// Màn hình hồ sơ người dùng.
 class ProfileScreen extends StatefulWidget {
@@ -17,11 +21,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   String _username = '';
   String _email = '';
+  bool _notificationsEnabled = true;
+
+  final _getNotificationsEnabled = GetNotificationsEnabled(DI.preferenceRepository);
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadNotificationSettings();
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    try {
+      final notifications = await _getNotificationsEnabled();
+
+      if (!mounted) return;
+      setState(() {
+        _notificationsEnabled = notifications;
+      });
+    } catch (e) {
+      // Nếu lỗi, giữ giá trị mặc định
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -263,35 +284,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildSettingTile(
               icon: Icons.notifications_outlined,
               title: 'Thông báo',
-              subtitle: 'Quản lý thông báo',
+              subtitle: _notificationsEnabled ? 'Đã bật' : 'Đã tắt',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng quản lý thông báo sẽ được bổ sung sau'),
-                  ),
-                );
-              },
-            ),
-            _buildSettingTile(
-              icon: Icons.language_outlined,
-              title: 'Ngôn ngữ',
-              subtitle: 'Tiếng Việt',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng đổi ngôn ngữ sẽ được bổ sung sau'),
-                  ),
-                );
-              },
-            ),
-            _buildSettingTile(
-              icon: Icons.dark_mode_outlined,
-              title: 'Giao diện',
-              subtitle: 'Chế độ sáng',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng đổi giao diện sẽ được bổ sung sau'),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationsScreen(),
                   ),
                 );
               },
@@ -312,9 +309,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'Trợ giúp & Hỗ trợ',
               subtitle: 'Câu hỏi thường gặp',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng trợ giúp sẽ được bổ sung sau'),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const HelpScreen(),
                   ),
                 );
               },
@@ -327,12 +324,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Về ứng dụng'),
-                    content: const Text('Expense Tracker\nPhiên bản 1.0.0'),
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                    ),
+                    title: const Text(
+                      'Về ứng dụng',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.gray900,
+                      ),
+                    ),
+                    content: const Text(
+                      'Expense Tracker\nPhiên bản 1.0.0',
+                      style: TextStyle(
+                        color: AppColors.gray700,
+                      ),
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Đóng'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.sm,
+                          ),
+                        ),
+                        child: const Text(
+                          'Đóng',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -416,4 +441,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
 }

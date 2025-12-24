@@ -1,4 +1,4 @@
-import '../repositories/expense_repository.dart';
+import '../repositories/expense.dart';
 
 /// Use case để lấy tóm tắt số liệu tài chính
 class GetExpenseSummary {
@@ -20,4 +20,3 @@ class GetExpenseSummary {
     );
   }
 }
-

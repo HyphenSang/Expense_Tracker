@@ -1,4 +1,4 @@
-import '../../domain/entities/jar_entity.dart';
+import '../../domain/entities/jar.dart';
 
 /// Data model cho Jar (DTO từ Supabase)
 class JarModel extends JarEntity {

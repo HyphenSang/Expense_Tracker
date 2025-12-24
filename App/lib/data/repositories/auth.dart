@@ -1,10 +1,10 @@
-import '../../domain/entities/user_profile_entity.dart';
-import '../../domain/repositories/auth_repository.dart';
-import '../datasources/supabase_datasource.dart';
-import '../models/user_profile_model.dart';
+import '../../domain/entities/user_profile.dart';
+import '../../domain/repositories/auth.dart' as domain;
+import '../datasources/supabase.dart';
+import '../models/user_profile.dart';
 
 /// Implementation của AuthRepository
-class AuthRepositoryImpl implements AuthRepository {
+class AuthRepositoryImpl implements domain.AuthRepository {
   final SupabaseDataSource _dataSource;
 
   AuthRepositoryImpl(this._dataSource);

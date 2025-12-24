@@ -1,10 +1,10 @@
-import '../../domain/entities/jar_entity.dart';
-import '../../domain/repositories/jar_repository.dart';
-import '../datasources/supabase_datasource.dart';
-import '../models/jar_model.dart';
+import '../../domain/entities/jar.dart';
+import '../../domain/repositories/jar.dart' as domain;
+import '../datasources/supabase.dart';
+import '../models/jar.dart';
 
 /// Implementation của JarRepository
-class JarRepositoryImpl implements JarRepository {
+class JarRepositoryImpl implements domain.JarRepository {
   final SupabaseDataSource _dataSource;
 
   JarRepositoryImpl(this._dataSource);

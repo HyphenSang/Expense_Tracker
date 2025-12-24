@@ -14,7 +14,6 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     // Kiểm tra auth state khi khởi động app
@@ -23,7 +22,6 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      // Nếu đã đăng nhập → HomeScreen, nếu chưa → WelcomeScreen
       home: isLoggedIn ? const HomeScreen() : const WelcomeScreen(),
     );
   }

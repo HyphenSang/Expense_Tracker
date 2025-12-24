@@ -86,9 +86,9 @@ class StatItem extends StatelessWidget {
         Text(
           amount,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
+                fontWeight: FontWeight.w600,
+                color: color,
+              ),
         ),
       ],
     );

@@ -31,6 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ExpenseSummary? _summary;
   List<JarData>? _jars;
   List<TransactionItemData>? _recentTransactions;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -77,10 +78,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      final summary = await ExpenseService.getSummary();
-      final jars = await ExpenseService.getJars();
-      final txs = await ExpenseService.getRecentTransactions(limit: 10);
+      // Chạy tất cả API calls song song để tăng tốc độ load
+      final results = await Future.wait([
+        ExpenseService.getSummary(),
+        ExpenseService.getJars(),
+        ExpenseService.getRecentTransactions(limit: 10),
+      ]);
+
+      final summary = results[0] as ExpenseSummary;
+      final jars = results[1] as List<JarData>;
+      final txs = results[2] as List<TransactionItemData>;
 
       if (!mounted) return;
 
@@ -88,15 +100,19 @@ class _HomeScreenState extends State<HomeScreen> {
         _summary = summary;
         _jars = jars;
         _recentTransactions = txs;
+        _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Không thể tải dữ liệu tài chính, đang dùng dữ liệu mẫu: $e'),
+          content: Text('Không thể tải dữ liệu tài chính: $e'),
           backgroundColor: AppColors.error,
         ),
       );
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -141,6 +157,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDashboardScroll() {
+    // Hiển thị loading cho toàn bộ màn hình
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primary,
+        ),
+      );
+    }
+
+    // Hiển thị nội dung khi đã load xong
     return CustomScrollView(
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
@@ -153,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
       pinned: true,
       delegate: TotalBalanceSliverDelegate(
         info: TotalBalanceInfo(
-          balance: _summary?.totalBalance ?? SampleData.totalBalance,
+          balance: _summary?.totalBalance ?? '',
           isLinked: true,
         ),
         onBankSelect: _navigateToWalletsTab,
@@ -166,9 +192,9 @@ class _HomeScreenState extends State<HomeScreen> {
       delegate: SliverChildListDelegate([
         const SizedBox(height: AppSpacing.lg),
         QuickStatsSection(
-          income: _summary?.monthlyIncome ?? SampleData.monthlyIncome,
-          expense: _summary?.monthlyExpense ?? SampleData.monthlyExpense,
-          saved: _summary?.monthlySaved ?? SampleData.monthlySaved,
+          income: _summary?.monthlyIncome ?? '',
+          expense: _summary?.monthlyExpense ?? '',
+          saved: _summary?.monthlySaved ?? '',
         ),
         const SizedBox(height: AppSpacing.xl),
         Padding(
@@ -182,9 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: RecentTransactionsSection(
-            dateLabel: SampleData.dateLabel,
-            transactions:
-                _recentTransactions ?? SampleData.recentTransactions,
+            dateLabel: 'Hôm nay',
+            transactions: _recentTransactions ?? [],
             onViewAll: () {
               Navigator.of(context).push(
                 MaterialPageRoute(

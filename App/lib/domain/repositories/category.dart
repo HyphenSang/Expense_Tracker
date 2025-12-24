@@ -1,4 +1,4 @@
-import '../entities/category_entity.dart';
+import '../entities/category.dart';
 
 /// Repository interface cho Category trong domain layer
 abstract class CategoryRepository {

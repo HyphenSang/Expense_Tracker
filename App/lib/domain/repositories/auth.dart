@@ -1,4 +1,4 @@
-import '../entities/user_profile_entity.dart';
+import '../entities/user_profile.dart';
 
 /// Repository interface cho Authentication trong domain layer
 abstract class AuthRepository {

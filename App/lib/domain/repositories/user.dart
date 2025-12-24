@@ -1,4 +1,4 @@
-import '../entities/user_profile_entity.dart';
+import '../entities/user_profile.dart';
 
 /// Repository interface cho User trong domain layer
 abstract class UserRepository {

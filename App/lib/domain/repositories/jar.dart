@@ -1,4 +1,4 @@
-import '../entities/jar_entity.dart';
+import '../entities/jar.dart';
 
 /// Repository interface cho Jar trong domain layer
 abstract class JarRepository {

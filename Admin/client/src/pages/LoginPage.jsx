@@ -214,12 +214,6 @@ const LoginPage = () => {
               )}
             </Button>
           </form>
-
-          <Box sx={{ mt: 3, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              Chỉ admin users mới có thể đăng nhập vào trang quản trị
-            </Typography>
-          </Box>
         </Paper>
       </Container>
     </Box>

@@ -1,4 +1,4 @@
-import '../../domain/entities/wallet_entity.dart';
+import '../../domain/entities/wallet.dart';
 
 /// Data model cho Wallet (DTO từ Supabase)
 class WalletModel extends WalletEntity {

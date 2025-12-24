@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/notification_service.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/usecases/preference/get_notifications_enabled.dart';
+import 'package:expenses/domain/usecases/preference/set_notifications_enabled.dart';
 
 /// Màn hình thông báo.
 class NotificationsScreen extends StatefulWidget {
@@ -14,11 +17,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   List<NotificationItem> _notifications = [];
   bool _isLoading = true;
   String? _error;
+  bool _notificationsEnabled = true;
+
+  final _getNotificationsEnabled = GetNotificationsEnabled(DI.preferenceRepository);
+  final _setNotificationsEnabled = SetNotificationsEnabled(DI.preferenceRepository);
 
   @override
   void initState() {
     super.initState();
     _loadNotifications();
+    _loadNotificationSettings();
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    try {
+      final enabled = await _getNotificationsEnabled();
+      if (mounted) {
+        setState(() {
+          _notificationsEnabled = enabled;
+        });
+      }
+    } catch (e) {
+      // Nếu lỗi, giữ giá trị mặc định
+    }
   }
 
   Future<void> _loadNotifications() async {
@@ -93,34 +114,99 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ),
                   ),
                 )
-              : _notifications.isEmpty
-                  ? _buildEmptyState()
-                  : RefreshIndicator(
-                      onRefresh: _loadNotifications,
-                      child: ListView(
-                        padding: const EdgeInsets.all(AppSpacing.lg),
+              : Column(
+                  children: [
+                    // Settings section
+                    Container(
+                      margin: const EdgeInsets.all(AppSpacing.lg),
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      decoration: BoxDecoration(
+                        color: AppColors.gray100,
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          if (unreadCount > 0) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                              child: Text(
-                                '$unreadCount thông báo chưa đọc',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      color: AppColors.gray600,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Bật thông báo',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                       fontWeight: FontWeight.w600,
+                                      color: AppColors.gray900,
                                     ),
                               ),
-                            ),
-                          ],
-                          ..._notifications
-                              .map((notification) => _buildNotificationCard(notification))
-                              .toList(),
+                              const SizedBox(height: AppSpacing.xs),
+                              Text(
+                                _notificationsEnabled
+                                    ? 'Bạn sẽ nhận thông báo về giao dịch và nhắc nhở'
+                                    : 'Thông báo đã được tắt',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.gray600,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: _notificationsEnabled,
+                            onChanged: (value) async {
+                              await _setNotificationsEnabled(value);
+                              if (mounted) {
+                                setState(() {
+                                  _notificationsEnabled = value;
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      value
+                                          ? 'Đã bật thông báo'
+                                          : 'Đã tắt thông báo',
+                                    ),
+                                    backgroundColor: AppColors.success,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                            activeColor: AppColors.primary,
+                          ),
                         ],
                       ),
                     ),
+                    // Notifications list
+                    Expanded(
+                      child: _notifications.isEmpty
+                          ? _buildEmptyState()
+                          : RefreshIndicator(
+                              onRefresh: _loadNotifications,
+                              child: ListView(
+                                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                                children: [
+                                  if (unreadCount > 0) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                                      child: Text(
+                                        '$unreadCount thông báo chưa đọc',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: AppColors.gray600,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                  ..._notifications
+                                      .map((notification) => _buildNotificationCard(notification))
+                                      .toList(),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
     );
   }
 
@@ -363,4 +449,3 @@ enum NotificationType {
   alert,
   system,
 }
-
