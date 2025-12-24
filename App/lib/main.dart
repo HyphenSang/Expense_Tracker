@@ -3,7 +3,7 @@ import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
 import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/auth_service.dart';
+import 'package:expenses/service/auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:expenses/core/supabase_flutter.dart';
-import 'package:expenses/service/auth_service.dart';
+import 'package:expenses/service/auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 String _slugify(String input) {

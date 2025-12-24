@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/notification_service.dart';
+import 'package:expenses/service/notification_realtime.dart';
 import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/entities/notification.dart' as domain;
 import 'package:expenses/domain/usecases/preference/get_notifications_enabled.dart';
 import 'package:expenses/domain/usecases/preference/set_notifications_enabled.dart';
+import 'package:expenses/domain/usecases/notification/mark_as_read.dart';
+import 'package:expenses/domain/usecases/notification/mark_all_as_read.dart';
 
 /// Màn hình thông báo.
 class NotificationsScreen extends StatefulWidget {
@@ -21,12 +25,71 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   final _getNotificationsEnabled = GetNotificationsEnabled(DI.preferenceRepository);
   final _setNotificationsEnabled = SetNotificationsEnabled(DI.preferenceRepository);
+  final _markAsReadUseCase = MarkNotificationAsRead(DI.notificationRepository);
+  final _markAllAsReadUseCase = MarkAllNotificationsAsRead(DI.notificationRepository);
+  StreamSubscription<List<domain.NotificationEntity>>? _notificationSubscription;
+  Timer? _timeUpdateTimer;
 
   @override
   void initState() {
     super.initState();
     _loadNotifications();
     _loadNotificationSettings();
+    _listenToRealtimeNotifications();
+    _startTimeUpdateTimer();
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    _timeUpdateTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimeUpdateTimer() {
+    // Cập nhật thời gian mỗi phút
+    _timeUpdateTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  void _listenToRealtimeNotifications() {
+    // Lắng nghe thông báo real-time
+    _notificationSubscription = NotificationRealtimeService.notificationStream.listen((entities) {
+      if (mounted) {
+        setState(() {
+          // Convert từ NotificationEntity sang NotificationItem cho UI
+          _notifications = entities.map((e) => _entityToItem(e)).toList();
+          _isLoading = false;
+        });
+      }
+    });
+  }
+
+  /// Convert NotificationEntity sang NotificationItem cho UI
+  NotificationItem _entityToItem(domain.NotificationEntity entity) {
+    return NotificationItem(
+      id: entity.id,
+      title: entity.title,
+      message: entity.message,
+      time: entity.createdAt,
+      isRead: entity.isRead,
+      type: _mapNotificationType(entity.type),
+    );
+  }
+
+  /// Map NotificationType từ domain sang presentation
+  NotificationType _mapNotificationType(domain.NotificationType type) {
+    switch (type) {
+      case domain.NotificationType.transaction:
+        return NotificationType.transaction;
+      case domain.NotificationType.reminder:
+        return NotificationType.reminder;
+      case domain.NotificationType.summary:
+        return NotificationType.summary;
+      case domain.NotificationType.alert:
+        return NotificationType.alert;
+    }
   }
 
   Future<void> _loadNotificationSettings() async {
@@ -49,10 +112,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
 
     try {
-      final data = await NotificationService.getNotifications();
+      // Đảm bảo service đã start
+      await NotificationRealtimeService.startListening();
+      
+      // Reload notifications và trạng thái đã đọc
+      await NotificationRealtimeService.reloadNotifications();
+      
+      // Đợi một chút để stream có dữ liệu
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      // Stream sẽ tự động cập nhật _notifications qua _listenToRealtimeNotifications
       if (!mounted) return;
       setState(() {
-        _notifications = data;
         _isLoading = false;
       });
     } catch (e) {
@@ -284,10 +355,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ),
         child: InkWell(
-          onTap: () {
-            setState(() {
-              notification.isRead = true;
-            });
+          onTap: () async {
+            if (!notification.isRead) {
+              await _markAsReadUseCase(notification.id);
+              setState(() {
+                notification.isRead = true;
+              });
+              // Reload để sync với repository
+              await NotificationRealtimeService.reloadNotifications();
+            }
           },
           borderRadius: BorderRadius.circular(AppRadius.lg),
           child: Padding(
@@ -393,34 +469,62 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   String _formatTime(DateTime time) {
-    final now = DateTime.now();
-    final difference = now.difference(time);
-
-    if (difference.inMinutes < 1) {
-      return 'Vừa xong';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} phút trước';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} giờ trước';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} ngày trước';
+    // Thời gian từ Supabase là UTC time (21:07), giữ nguyên để hiển thị đúng
+    // Không convert sang local time
+    final notificationTime = time.isUtc ? time : time.toUtc();
+    final now = DateTime.now().toUtc(); // So sánh với UTC time
+    
+    // So sánh ngày ở UTC timezone
+    final today = DateTime.utc(now.year, now.month, now.day);
+    final notificationDate = DateTime.utc(
+      notificationTime.year,
+      notificationTime.month,
+      notificationTime.day,
+    );
+    
+    // Nếu cùng ngày: hiển thị giờ:phút UTC từ occurred_at trong Supabase (21:07)
+    if (notificationDate == today) {
+      final hour = notificationTime.hour.toString().padLeft(2, '0');
+      final minute = notificationTime.minute.toString().padLeft(2, '0');
+      return '$hour:$minute';
+    }
+    
+    // Nếu thời gian trong tương lai (không nên xảy ra): hiển thị giờ:phút
+    if (notificationDate.isAfter(today)) {
+      final hour = notificationTime.hour.toString().padLeft(2, '0');
+      final minute = notificationTime.minute.toString().padLeft(2, '0');
+      return '$hour:$minute';
+    }
+    
+    // Nếu khác ngày: tính số ngày từ occurred_at (UTC)
+    final daysDiff = today.difference(notificationDate).inDays;
+    
+    if (daysDiff == 1) {
+      return '1 ngày trước';
+    } else if (daysDiff < 7) {
+      return '$daysDiff ngày trước';
     } else {
-      return '${time.day}/${time.month}/${time.year}';
+      return '${notificationTime.day}/${notificationTime.month}/${notificationTime.year}';
     }
   }
 
-  void _markAllAsRead() {
+  Future<void> _markAllAsRead() async {
+    final notificationIds = _notifications.map((n) => n.id).toList();
+    await _markAllAsReadUseCase(notificationIds);
     setState(() {
-      for (var notification in _notifications) {
-        notification.isRead = true;
-      }
+      _notifications.forEach((n) => n.isRead = true);
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Đã đánh dấu tất cả là đã đọc'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    // Reload để sync với repository
+    await NotificationRealtimeService.reloadNotifications();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đã đánh dấu tất cả là đã đọc'),
+          duration: Duration(seconds: 2),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
   }
 }
 

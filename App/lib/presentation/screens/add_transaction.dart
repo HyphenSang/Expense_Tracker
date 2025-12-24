@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/transaction_service.dart';
-import 'package:expenses/service/category_service.dart';
+import 'package:expenses/service/transaction.dart';
+import 'package:expenses/service/category.dart';
 import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/presentation/screens/create_category.dart';
+import 'package:expenses/service/notification_realtime.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -37,6 +38,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       initialDate: _selectedDate,
       firstDate: DateTime(now.year - 3),
       lastDate: DateTime(now.year + 3),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.gray900,
+            ),
+            dialogBackgroundColor: Colors.white,
+          ),
+          child: child!,
+        );
+      },
     );
     if (result != null) {
       setState(() {
@@ -84,6 +99,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       );
 
       if (!mounted) return;
+      
+      // Reload notifications ngay sau khi tạo transaction thành công
+      await NotificationRealtimeService.reloadNotifications();
       
       // Trả về true để báo hiệu đã thêm thành công
       Navigator.of(context).pop(true);

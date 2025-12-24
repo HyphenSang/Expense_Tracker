@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/category_service.dart';
+import 'package:expenses/service/category.dart';
 
 /// Màn hình tạo danh mục mới (full screen).
 class CreateCategoryScreen extends StatefulWidget {

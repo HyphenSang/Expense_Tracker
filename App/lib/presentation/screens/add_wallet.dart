@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/wallet_service.dart';
+import 'package:expenses/service/wallet.dart';
 
 /// Màn hình thêm ví hoặc tài khoản ngân hàng.
 class AddWalletScreen extends StatefulWidget {
@@ -254,7 +254,10 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Chọn ngân hàng',
                       border: OutlineInputBorder(),
+                      filled: true,
+                      fillColor: Colors.white,
                     ),
+                    dropdownColor: Colors.white,
                     items: _banks.map((bank) {
                       return DropdownMenuItem<String>(
                         value: bank['code'],

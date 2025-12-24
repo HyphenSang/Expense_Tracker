@@ -3,8 +3,8 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
 import 'package:expenses/presentation/state/password_strength_indicator.dart';
-import 'package:expenses/service/auth_service.dart';
-import 'package:expenses/service/user_service.dart';
+import 'package:expenses/service/auth.dart';
+import 'package:expenses/service/user.dart';
 
 class RegisScreen extends StatefulWidget {
   final String email;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/expense_service.dart';
+import 'package:expenses/service/expense.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 /// Màn hình lịch sử giao dịch với 2 tab: Hoạt động và Thống kê.

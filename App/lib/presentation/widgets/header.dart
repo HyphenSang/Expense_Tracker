@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/profile.dart';
 import 'package:expenses/presentation/screens/notifications.dart';
+import 'package:expenses/service/notification_realtime.dart';
 
-class HomeHeader extends StatelessWidget {
+class HomeHeader extends StatefulWidget {
   final String username;
   final VoidCallback? onProfileTap;
   final VoidCallback? onNotificationsTap;
@@ -14,6 +16,37 @@ class HomeHeader extends StatelessWidget {
     this.onProfileTap,
     this.onNotificationsTap,
   });
+
+  @override
+  State<HomeHeader> createState() => _HomeHeaderState();
+}
+
+class _HomeHeaderState extends State<HomeHeader> {
+  int _unreadCount = 0;
+  StreamSubscription<int>? _unreadCountSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenToNotifications();
+  }
+
+  @override
+  void dispose() {
+    _unreadCountSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _listenToNotifications() {
+    // Lắng nghe số lượng thông báo chưa đọc
+    _unreadCountSubscription = NotificationRealtimeService.unreadCountStream.listen((count) {
+      if (mounted) {
+        setState(() {
+          _unreadCount = count;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,8 +60,8 @@ class HomeHeader extends StatelessWidget {
             children: [
               InkWell(
                 onTap: () {
-                  if (onProfileTap != null) {
-                    onProfileTap!();
+                  if (widget.onProfileTap != null) {
+                    widget.onProfileTap!();
                   } else {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -58,7 +91,7 @@ class HomeHeader extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'Xin chào, $username',
+                            'Xin chào, ${widget.username}',
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w600,
                               color: AppColors.gray900,
@@ -89,20 +122,52 @@ class HomeHeader extends StatelessWidget {
                 icon: Icon(Icons.settings_outlined, color: AppColors.gray900),
                 padding: EdgeInsets.zero,
               ),
-              IconButton(
-                onPressed: () {
-                  if (onNotificationsTap != null) {
-                    onNotificationsTap!();
-                  } else {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const NotificationsScreen(),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    onPressed: () {
+                      if (widget.onNotificationsTap != null) {
+                        widget.onNotificationsTap!();
+                      } else {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationsScreen(),
+                          ),
+                        );
+                      }
+                    },
+                    icon: Icon(Icons.notifications_outlined, color: AppColors.gray900),
+                    padding: EdgeInsets.zero,
+                  ),
+                  if (_unreadCount > 0)
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: Container(
+                        padding: EdgeInsets.all(_unreadCount > 9 ? 2 : 4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.error,
+                          shape: BoxShape.circle,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Center(
+                          child: Text(
+                            _unreadCount > 9 ? '9+' : '$_unreadCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                       ),
-                    );
-                  }
-                },
-                icon: Icon(Icons.notifications_outlined, color: AppColors.gray900),
-                padding: EdgeInsets.zero,
+                    ),
+                ],
               ),
             ],
           ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/expense_service.dart';
+import 'package:expenses/service/expense.dart';
 import 'package:expenses/presentation/screens/add_wallet.dart';
 
 /// Màn hình ví & tài khoản thanh toán.

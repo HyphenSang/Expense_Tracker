@@ -13,9 +13,10 @@ import 'package:expenses/presentation/widgets/jars.dart';
 import 'package:expenses/presentation/widgets/quick_stats.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 import 'package:expenses/presentation/widgets/total_balance.dart';
-import 'package:expenses/service/auth_service.dart';
-import 'package:expenses/service/expense_service.dart';
-import 'package:expenses/service/user_service.dart';
+import 'package:expenses/service/auth.dart';
+import 'package:expenses/service/expense.dart';
+import 'package:expenses/service/user.dart';
+import 'package:expenses/service/notification_realtime.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -39,11 +40,19 @@ class _HomeScreenState extends State<HomeScreen> {
     _scrollController = ScrollController();
     _loadProfile();
     _loadDashboardData();
+    // Bắt đầu lắng nghe thông báo real-time
+    _startNotificationService();
+  }
+
+  Future<void> _startNotificationService() async {
+    await NotificationRealtimeService.startListening();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    // Dừng lắng nghe khi dispose
+    NotificationRealtimeService.stopListening();
     super.dispose();
   }
 

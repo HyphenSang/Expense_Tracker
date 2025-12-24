@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/auth_service.dart';
-import 'package:expenses/service/user_service.dart';
+import 'package:expenses/service/auth.dart';
+import 'package:expenses/service/user.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
 import 'package:expenses/presentation/screens/help.dart';
 import 'package:expenses/presentation/screens/notifications.dart';
+import 'package:expenses/presentation/screens/personal_info.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/usecases/preference/get_notifications_enabled.dart';
 
@@ -261,12 +262,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: Icons.person_outline,
               title: 'Thông tin cá nhân',
               subtitle: 'Cập nhật thông tin của bạn',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng cập nhật thông tin sẽ được bổ sung sau'),
+              onTap: () async {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const PersonalInfoScreen(),
                   ),
                 );
+                // Nếu cập nhật thành công, reload profile
+                if (result == true) {
+                  _loadProfile();
+                }
               },
             ),
             _buildSettingTile(

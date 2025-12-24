@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
-import 'package:expenses/service/auth_service.dart';
+import 'package:expenses/service/auth.dart';
 
 class LoginScreen extends StatefulWidget {
   final String email;

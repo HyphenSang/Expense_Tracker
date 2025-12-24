@@ -199,7 +199,7 @@ class ExpenseService {
 
     final res = await _client
         .from('transactions')
-        .select('type, amount, note, occurred_at, categories(name)')
+        .select('id, type, amount, note, occurred_at, categories(name)')
         .eq('user_id', user.id)
         .order('occurred_at', ascending: false) // Giao dịch gần nhất ở trên
         .limit(limit);
@@ -207,13 +207,51 @@ class ExpenseService {
     final list = <TransactionItemData>[];
 
     for (final row in res as List) {
+      final id = row['id'] as String?;
       final type = row['type'] as String?;
       final amount = (row['amount'] as num?) ?? 0;
       final note = (row['note'] as String?) ?? 'Giao dịch';
+      // Lấy occurred_at từ Supabase (timestamp with time zone)
+      // Supabase trả về UTC time với format: "2025-12-24 21:07:12.039+00"
+      // Giữ nguyên UTC time để hiển thị đúng như trong database (không convert sang local)
       final occurredAtStr = row['occurred_at'] as String?;
       DateTime? occurredAt;
       if (occurredAtStr != null) {
-        occurredAt = DateTime.tryParse(occurredAtStr)?.toLocal();
+        try {
+          // Parse ISO 8601 string từ Supabase (UTC time)
+          // Format: "2025-12-24T21:07:12.039Z" hoặc "2025-12-24 21:07:12.039+00"
+          final parsed = DateTime.parse(occurredAtStr);
+          // Giữ nguyên UTC time để hiển thị đúng như trong database (21:07)
+          // Không convert sang local time
+          if (parsed.isUtc) {
+            occurredAt = parsed; // Giữ UTC
+          } else if (occurredAtStr.endsWith('+00') || occurredAtStr.endsWith('Z')) {
+            // Nếu string có +00 hoặc Z, đảm bảo là UTC
+            occurredAt = DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          } else {
+            // Nếu không có timezone, giả định là UTC
+            occurredAt = parsed.isUtc ? parsed : DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          }
+        } catch (e) {
+          // Nếu parse lỗi, thử parse lại
+          occurredAt = DateTime.tryParse(occurredAtStr);
+        }
       }
 
       final isIncome = type == 'INCOME';
@@ -232,6 +270,7 @@ class ExpenseService {
 
       list.add(
         TransactionItemData(
+          id: id,
           title: note,
           category: categoryName,
           amount: '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
@@ -279,10 +318,47 @@ class ExpenseService {
       final type = row['type'] as String?;
       final amount = (row['amount'] as num?) ?? 0;
       final note = (row['note'] as String?) ?? 'Giao dịch';
+      // Lấy occurred_at từ Supabase (timestamp with time zone)
+      // Supabase trả về UTC time với format: "2025-12-24 21:07:12.039+00"
+      // Giữ nguyên UTC time để hiển thị đúng như trong database (không convert sang local)
       final occurredAtStr = row['occurred_at'] as String?;
       DateTime? occurredAt;
       if (occurredAtStr != null) {
-        occurredAt = DateTime.tryParse(occurredAtStr)?.toLocal();
+        try {
+          // Parse ISO 8601 string từ Supabase (UTC time)
+          // Format: "2025-12-24T21:07:12.039Z" hoặc "2025-12-24 21:07:12.039+00"
+          final parsed = DateTime.parse(occurredAtStr);
+          // Giữ nguyên UTC time để hiển thị đúng như trong database (21:07)
+          // Không convert sang local time
+          if (parsed.isUtc) {
+            occurredAt = parsed; // Giữ UTC
+          } else if (occurredAtStr.endsWith('+00') || occurredAtStr.endsWith('Z')) {
+            // Nếu string có +00 hoặc Z, đảm bảo là UTC
+            occurredAt = DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          } else {
+            // Nếu không có timezone, giả định là UTC
+            occurredAt = parsed.isUtc ? parsed : DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          }
+        } catch (e) {
+          // Nếu parse lỗi, thử parse lại
+          occurredAt = DateTime.tryParse(occurredAtStr);
+        }
       }
 
       final isIncome = type == 'INCOME';

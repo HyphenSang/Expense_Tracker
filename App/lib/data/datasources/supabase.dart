@@ -150,10 +150,13 @@ class SupabaseDataSource {
     String userId,
     Map<String, dynamic> data,
   ) async {
+    // Sử dụng upsert để tạo mới nếu chưa có, cập nhật nếu đã có
     final result = await _client
         .from('profiles')
-        .update(data)
-        .eq('id', userId)
+        .upsert({
+          'id': userId,
+          ...data,
+        }, onConflict: 'id')
         .select()
         .single();
     return Map<String, dynamic>.from(result);

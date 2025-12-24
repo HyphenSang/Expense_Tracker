@@ -1,6 +1,6 @@
 import 'package:expenses/core/supabase_flutter.dart';
-import 'package:expenses/service/expense_service.dart';
-import 'package:expenses/presentation/screens/notifications.dart';
+import 'package:expenses/service/expense.dart';
+import 'package:expenses/domain/entities/notification.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Service tạo danh sách thông báo dựa trên dữ liệu thật của user.
@@ -16,19 +16,24 @@ class NotificationService {
   /// - Nhắc nhở ghi chép chi tiêu trong ngày
   /// - Thống kê chi tiêu 7 ngày gần nhất
   /// - Cảnh báo ngân sách theo danh mục trong tháng hiện tại
-  static Future<List<NotificationItem>> getNotifications() async {
+  static Future<List<NotificationEntity>> getNotifications() async {
     final user = _currentUser;
     if (user == null) return [];
 
-    final notifications = <NotificationItem>[];
+    final notifications = <NotificationEntity>[];
 
-    // 1. Giao dịch gần đây (tối đa 3 giao dịch)
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+
+    // 1. Giao dịch gần đây trong 7 ngày (tối đa 20 giao dịch)
     try {
-      final recentTx = await ExpenseService.getRecentTransactions(limit: 3);
-      for (var i = 0; i < recentTx.length; i++) {
-        final tx = recentTx[i];
+      final recentTx = await ExpenseService.getRecentTransactions(limit: 20);
+      for (var tx in recentTx) {
         final occurredAt = tx.occurredAt;
         if (occurredAt == null) continue;
+
+        // Chỉ lấy giao dịch trong 7 ngày gần nhất
+        if (occurredAt.isBefore(weekAgo)) continue;
 
         final isIncome = tx.amount.startsWith('+');
         final title = isIncome ? 'Giao dịch thu nhập mới' : 'Giao dịch chi tiêu mới';
@@ -36,12 +41,18 @@ class NotificationService {
             ? 'Bạn đã nhận ${tx.amount} từ danh mục \"${tx.category}\"'
             : 'Bạn đã chi ${tx.amount} cho \"${tx.category}\"';
 
+        // Sử dụng transaction ID thực tế nếu có, nếu không thì dùng timestamp
+        final notificationId = tx.id != null 
+            ? 'tx_${tx.id}' 
+            : 'tx_${occurredAt.millisecondsSinceEpoch}';
+
         notifications.add(
-          NotificationItem(
-            id: 'tx_${occurredAt.millisecondsSinceEpoch}_$i',
+          NotificationEntity(
+            id: notificationId,
+            userId: user.id,
             title: title,
             message: message,
-            time: occurredAt,
+            createdAt: occurredAt,
             isRead: false,
             type: NotificationType.transaction,
           ),
@@ -50,8 +61,6 @@ class NotificationService {
     } catch (_) {
       // Nếu lỗi, bỏ qua phần này để không làm vỡ màn hình Thông báo
     }
-
-    final now = DateTime.now();
 
     // 2. Nhắc nhở ghi chép chi tiêu hôm nay (nếu chưa có giao dịch trong ngày)
     try {
@@ -68,12 +77,13 @@ class NotificationService {
 
       if (res.isEmpty) {
         notifications.add(
-          NotificationItem(
+          NotificationEntity(
             id: 'reminder_${todayStart.toIso8601String()}',
+            userId: user.id,
             title: 'Nhắc nhở',
             message:
                 'Bạn chưa ghi lại chi tiêu hôm nay. Hãy cập nhật để theo dõi tốt hơn!',
-            time: now,
+            createdAt: now,
             isRead: false,
             type: NotificationType.reminder,
           ),
@@ -83,7 +93,7 @@ class NotificationService {
       // Bỏ qua nếu lỗi
     }
 
-    // 3. Thống kê tuần: tổng chi tiêu 7 ngày gần nhất
+    // 3. Thống kê tuần: tổng chi tiêu 7 ngày gần nhất (chỉ hiển thị nếu có giao dịch trong tuần)
     try {
       final weekStart = now.subtract(const Duration(days: 7));
 
@@ -105,12 +115,13 @@ class NotificationService {
 
       if (weeklyExpense > 0) {
         notifications.add(
-          NotificationItem(
+          NotificationEntity(
             id: 'summary_${weekStart.toIso8601String()}',
+            userId: user.id,
             title: 'Thống kê tuần',
             message:
                 'Tổng chi tiêu 7 ngày gần đây của bạn là ${ExpenseService.formatCurrency(weeklyExpense)}',
-            time: now,
+            createdAt: weekStart.add(const Duration(days: 1)), // Thời gian của thống kê
             isRead: true,
             type: NotificationType.summary,
           ),
@@ -120,40 +131,16 @@ class NotificationService {
       // Bỏ qua nếu lỗi
     }
 
-    // 4. Cảnh báo ngân sách theo danh mục trong tháng hiện tại
-    try {
-      final monthCategories =
-          await ExpenseService.getCategorySpendingForMonth(
-        year: now.year,
-        month: now.month,
-      );
+    // 4. Cảnh báo ngân sách theo danh mục trong tháng hiện tại (chỉ hiển thị nếu trong tuần)
+    // Bỏ qua phần này vì cảnh báo ngân sách là theo tháng, không phải theo tuần
 
-      if (monthCategories.isNotEmpty) {
-        // Lấy danh mục có tỷ lệ chi tiêu cao nhất
-        monthCategories.sort((a, b) => b.percentage.compareTo(a.percentage));
-        final top = monthCategories.first;
-
-        // Nếu danh mục này chiếm >= 80% tổng chi tiêu thì cảnh báo
-        if (top.percentage >= 80) {
-          notifications.add(
-            NotificationItem(
-              id: 'alert_${now.year}_${now.month}_${top.name}',
-              title: 'Cảnh báo ngân sách',
-              message:
-                  'Bạn đã chi tiêu ${top.percentage.toStringAsFixed(0)}% ngân sách tháng này cho danh mục \"${top.name}\"',
-              time: now,
-              isRead: true,
-              type: NotificationType.alert,
-            ),
-          );
-        }
-      }
-    } catch (_) {
-      // Bỏ qua nếu lỗi
-    }
+    // Lọc lại để chỉ giữ các thông báo trong 7 ngày gần nhất
+    notifications.removeWhere((notification) {
+      return notification.createdAt.isBefore(weekAgo);
+    });
 
     // Sắp xếp thông báo theo thời gian mới nhất ở trên
-    notifications.sort((a, b) => b.time.compareTo(a.time));
+    notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return notifications;
   }

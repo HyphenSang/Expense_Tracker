@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/widgets/p_button.dart';
 import 'package:expenses/presentation/screens/auth.dart';
-import 'package:expenses/service/auth_service.dart';
+import 'package:expenses/service/auth.dart';
 import 'package:expenses/presentation/screens/home.dart';
 
 class WelcomeScreen extends StatefulWidget {

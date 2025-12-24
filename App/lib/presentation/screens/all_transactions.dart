@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/expense_service.dart';
-import 'package:expenses/service/category_service.dart';
+import 'package:expenses/service/expense.dart';
+import 'package:expenses/service/category.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 
 /// Màn hình xem tất cả giao dịch, sắp xếp theo ngày (gần nhất ở trên).
