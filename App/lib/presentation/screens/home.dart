@@ -13,10 +13,12 @@ import 'package:expenses/presentation/widgets/jars.dart';
 import 'package:expenses/presentation/widgets/quick_stats.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 import 'package:expenses/presentation/widgets/total_balance.dart';
-import 'package:expenses/service/auth.dart';
 import 'package:expenses/service/expense.dart';
-import 'package:expenses/service/user.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/usecases/auth.dart';
+import 'package:expenses/domain/usecases/user.dart';
 import 'package:expenses/service/notification_realtime.dart';
+import 'package:expenses/domain/usecases/expense.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,6 +35,14 @@ class _HomeScreenState extends State<HomeScreen> {
   List<JarData>? _jars;
   List<TransactionItemData>? _recentTransactions;
   bool _isLoading = true;
+
+  // Use cases
+  final _getSummary = GetExpenseSummary(DI.expenseRepository);
+  final _getJars = GetJars(DI.expenseRepository);
+  final _getTransactions = GetTransactions(DI.expenseRepository);
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
+  final _getCurrentUserProfile = GetCurrentUserProfile(DI.userRepository);
+  final _ensureCurrentUserProfile = EnsureCurrentUserProfile(DI.userRepository);
 
   @override
   void initState() {
@@ -57,12 +67,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final user = AuthService.getUser();
+    final user = _getCurrentUser();
     if (user == null) return;
 
     try {
-      var profile = await UserService.getCurrentUserProfile();
-      profile ??= await UserService.ensureCurrentUserProfile();
+      var profile = await _getCurrentUserProfile();
+      profile ??= await _ensureCurrentUserProfile();
 
       if (!mounted) return;
       final safeProfile = profile;
@@ -71,8 +81,8 @@ class _HomeScreenState extends State<HomeScreen> {
         _username =
             safeProfile.username ??
             safeProfile.fullName ??
-            user.userMetadata?['username'] as String? ??
-            user.email?.split('@').first ??
+            safeProfile.userMetadata?['username'] as String? ??
+            safeProfile.email?.split('@').first ??
             'User';
       });
     } catch (e) {
@@ -94,14 +104,14 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       // Chạy tất cả API calls song song để tăng tốc độ load
       final results = await Future.wait([
-        ExpenseService.getSummary(),
-        ExpenseService.getJars(),
-        ExpenseService.getRecentTransactions(limit: 10),
+        _getSummary(),
+        _getJars(),
+        _getTransactions.getRecent(limit: 10),
       ]);
 
       final summary = results[0] as ExpenseSummary;
       final jars = results[1] as List<JarData>;
-      final txs = results[2] as List<TransactionItemData>;
+      final txs = results[2] as List<TransactionItemData>?;
 
       if (!mounted) return;
 
@@ -127,11 +137,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final metadataUsername =
-        AuthService.getUser()?.userMetadata?['username'] as String?;
+    final user = _getCurrentUser();
+    final metadataUsername = user?.userMetadata?['username'] as String?;
     final fallbackUsername =
         metadataUsername ??
-        AuthService.getUser()?.email?.split('@').first ??
+        user?.email?.split('@').first ??
         'User';
     final username = _username.isNotEmpty ? _username : fallbackUsername;
 

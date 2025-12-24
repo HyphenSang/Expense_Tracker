@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
-import 'package:expenses/service/auth.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/usecases/auth.dart';
 
 class LoginScreen extends StatefulWidget {
   final String email;
@@ -17,6 +18,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  // Use case
+  final _signIn = SignIn(DI.authRepository);
 
   @override
   void dispose() {
@@ -35,12 +39,12 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final response = await AuthService.signInWithPassword(
+      await _signIn(
         email: widget.email,
         password: _passwordController.text,
       );
 
-      if (response.user != null && mounted) {
+      if (mounted) {
         // Login successfully
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

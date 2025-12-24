@@ -4,10 +4,8 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/notification_realtime.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/entities/notification.dart' as domain;
-import 'package:expenses/domain/usecases/preference/get_notifications_enabled.dart';
-import 'package:expenses/domain/usecases/preference/set_notifications_enabled.dart';
-import 'package:expenses/domain/usecases/notification/mark_as_read.dart';
-import 'package:expenses/domain/usecases/notification/mark_all_as_read.dart';
+import 'package:expenses/domain/usecases/preference.dart';
+import 'package:expenses/domain/usecases/notification.dart';
 
 /// Màn hình thông báo.
 class NotificationsScreen extends StatefulWidget {

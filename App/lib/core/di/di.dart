@@ -6,6 +6,8 @@ import '../../data/repositories/wallet.dart';
 import '../../data/repositories/preference.dart';
 import '../../data/repositories/user.dart';
 import '../../data/repositories/notification.dart';
+import '../../data/repositories/expense.dart';
+import '../../data/repositories/category.dart';
 import '../../domain/repositories/auth.dart' as domain;
 import '../../domain/repositories/transaction.dart' as domain_transaction;
 import '../../domain/repositories/jar.dart' as domain_jar;
@@ -13,6 +15,8 @@ import '../../domain/repositories/wallet.dart' as domain_wallet;
 import '../../domain/repositories/preference.dart' as domain_preference;
 import '../../domain/repositories/user.dart' as domain_user;
 import '../../domain/repositories/notification.dart' as domain_notification;
+import '../../domain/repositories/expense.dart' as domain_expense;
+import '../../domain/repositories/category.dart' as domain_category;
 
 /// Dependency Injection container
 /// 
@@ -29,6 +33,8 @@ class DI {
   static final domain_preference.PreferenceRepository _preferenceRepository = PreferenceRepositoryImpl();
   static final domain_user.UserRepository _userRepository = UserRepositoryImpl(_supabaseDataSource);
   static final domain_notification.NotificationRepository _notificationRepository = NotificationRepositoryImpl();
+  static final domain_expense.ExpenseRepository _expenseRepository = ExpenseRepositoryImpl(_supabaseDataSource);
+  static final domain_category.CategoryRepository _categoryRepository = CategoryRepositoryImpl(_supabaseDataSource);
 
   // Getters
   static domain.AuthRepository get authRepository => _authRepository;
@@ -38,5 +44,7 @@ class DI {
   static domain_preference.PreferenceRepository get preferenceRepository => _preferenceRepository;
   static domain_user.UserRepository get userRepository => _userRepository;
   static domain_notification.NotificationRepository get notificationRepository => _notificationRepository;
+  static domain_expense.ExpenseRepository get expenseRepository => _expenseRepository;
+  static domain_category.CategoryRepository get categoryRepository => _categoryRepository;
 }
 

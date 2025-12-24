@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/auth.dart';
 import 'package:expenses/core/di/di.dart';
-import 'package:expenses/domain/usecases/user/update_profile.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/user.dart';
 
 /// Màn hình cập nhật thông tin cá nhân
 class PersonalInfoScreen extends StatefulWidget {
@@ -20,6 +20,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   String _email = '';
 
   final _updateUserProfile = UpdateUserProfile(DI.userRepository);
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
 
   @override
   void initState() {
@@ -35,7 +36,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   }
 
   Future<void> _loadUserInfo() async {
-    final user = AuthService.getUser();
+    final user = _getCurrentUser();
     if (user == null) return;
 
     setState(() {
@@ -58,7 +59,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final user = AuthService.getUser();
+    final user = _getCurrentUser();
     if (user == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

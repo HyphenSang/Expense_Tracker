@@ -4,6 +4,8 @@ class UserProfileEntity {
   final String? username;
   final String? fullName;
   final String? avatarUrl;
+  final String? email; // Email từ auth user
+  final Map<String, dynamic>? userMetadata; // Metadata từ auth user
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -12,6 +14,8 @@ class UserProfileEntity {
     this.username,
     this.fullName,
     this.avatarUrl,
+    this.email,
+    this.userMetadata,
     this.createdAt,
     this.updatedAt,
   });

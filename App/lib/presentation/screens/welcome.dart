@@ -9,7 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/widgets/p_button.dart';
 import 'package:expenses/presentation/screens/auth.dart';
-import 'package:expenses/service/auth.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/presentation/screens/home.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -20,6 +21,9 @@ class WelcomeScreen extends StatefulWidget {
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
+  // Use case
+  final _signIn = SignIn(DI.authRepository);
+
   @override
   Widget build(BuildContext context) {
     final Size media = MediaQuery.sizeOf(context);
@@ -65,7 +69,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         TextButton(
                           onPressed: () async {
                             try {
-                              await AuthService.signInWithPassword(
+                              await _signIn(
                                 email: 'nhiy9130@gmail.com',
                                 password: '123456',
                               );

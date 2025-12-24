@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/transaction.dart';
-import 'package:expenses/service/category.dart';
-import 'package:expenses/core/supabase_flutter.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/category.dart';
+import 'package:expenses/domain/features/wallet.dart';
+import 'package:expenses/domain/features/transaction.dart';
 import 'package:expenses/presentation/screens/create_category.dart';
 import 'package:expenses/service/notification_realtime.dart';
 
@@ -23,6 +25,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String? _selectedCategory;
   DateTime _selectedDate = DateTime.now();
   bool _isSubmitting = false;
+
+  // Use cases
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
 
   @override
   void dispose() {
@@ -90,12 +95,44 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     });
 
     try {
-      await TransactionService.createTransaction(
-        isExpense: _isExpense,
-        amount: amount,
+      final user = _getCurrentUser();
+      if (user == null) {
+        throw StateError('Chưa đăng nhập');
+      }
+
+      // Lấy hoặc tạo category
+      final getOrCreateCategory = GetOrCreateCategory(DI.categoryRepository, user.id);
+      final category = await getOrCreateCategory(
         categoryName: _selectedCategory!,
+        type: _isExpense ? 'EXPENSE' : 'INCOME',
+      );
+
+      // Lấy hoặc tạo wallet
+      final getOrCreateDefaultWallet = GetOrCreateDefaultWallet(DI.walletRepository, user.id);
+      final wallet = await getOrCreateDefaultWallet();
+
+      // Đọc số dư hiện tại và cập nhật
+      final currentBalance = wallet.balance;
+      final newBalance = _isExpense 
+          ? currentBalance - amount  // Chi tiêu: trừ đi
+          : currentBalance + amount; // Thu nhập: cộng vào
+      
+      // Cập nhật balance của wallet
+      await DI.walletRepository.updateWalletBalance(
+        walletId: wallet.id,
+        balance: newBalance,
+      );
+
+      // Tạo transaction
+      final createTransaction = CreateTransaction(DI.transactionRepository);
+      await createTransaction(
+        userId: user.id,
+        walletId: wallet.id,
+        categoryId: category.id,
+        type: _isExpense ? 'EXPENSE' : 'INCOME',
+        amount: amount,
+        note: _noteController.text.isEmpty ? '' : _noteController.text,
         occurredAt: _selectedDate,
-        note: _noteController.text.isEmpty ? null : _noteController.text,
       );
 
       if (!mounted) return;
@@ -413,7 +450,8 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
 
   Future<void> _loadUserCategories() async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
+      final getCurrentUser = GetCurrentUser(DI.authRepository);
+      final user = getCurrentUser();
       if (user == null) {
         setState(() {
           _isLoadingCategories = false;
@@ -422,24 +460,25 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
       }
 
       // Load tất cả danh mục của user (cả EXPENSE và INCOME)
-      final categories = await CategoryService.getCategories();
+      final getCategories = GetCategories(DI.categoryRepository, user.id);
+      final categories = await getCategories();
 
       setState(() {
         _userCategories = categories.map((cat) {
           // Parse màu từ hex string
           Color? color;
           try {
-            final colorStr = (cat['color'] as String?) ?? '#6B7280';
+            final colorStr = cat.color ?? '#6B7280';
             color = Color(int.parse(colorStr.replaceAll('#', ''), radix: 16) + 0xFF000000);
           } catch (_) {
             color = AppColors.gray500;
           }
 
           return _CategoryItem(
-            name: cat['name'] as String,
-            icon: _getIconFromString(cat['icon'] as String?),
+            name: cat.name,
+            icon: _getIconFromString(cat.icon),
             color: color,
-            type: cat['type'] as String? ?? 'EXPENSE', // Lưu type để phân loại
+            type: cat.type, // Lưu type để phân loại
           );
         }).toList();
         _isLoadingCategories = false;

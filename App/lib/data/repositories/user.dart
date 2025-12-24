@@ -21,6 +21,70 @@ class UserRepositoryImpl implements domain.UserRepository {
   }
 
   @override
+  Future<UserProfileEntity?> getCurrentUserProfile() async {
+    final user = _dataSource.getCurrentAuthUser();
+    if (user == null) return null;
+    final profile = await _dataSource.getUserProfile(user.id);
+    if (profile == null) return null;
+    final model = UserProfileModel.fromJson(profile);
+    // Thêm email và userMetadata từ auth user
+    return UserProfileModel(
+      id: model.id,
+      username: model.username,
+      fullName: model.fullName,
+      avatarUrl: model.avatarUrl,
+      email: user.email,
+      userMetadata: user.userMetadata,
+      createdAt: model.createdAt,
+      updatedAt: model.updatedAt,
+    );
+  }
+
+  @override
+  Future<UserProfileEntity> ensureCurrentUserProfile({
+    String? username,
+    String? fullName,
+    String? avatarUrl,
+  }) async {
+    final user = _dataSource.getCurrentAuthUser();
+    if (user == null) {
+      throw StateError('Chưa có người dùng đăng nhập để tạo profile.');
+    }
+
+    // Lấy profile hiện tại nếu có
+    final existingProfile = await _dataSource.getUserProfile(user.id);
+    
+    // Tạo fallback username
+    final fallbackUsername = username ??
+        user.userMetadata?['username'] as String? ??
+        user.email?.split('@').first ??
+        'User';
+
+    // Tạo hoặc cập nhật profile
+    final updateData = <String, dynamic>{
+      'username': fallbackUsername,
+      if (fullName != null) 'full_name': fullName,
+      if (avatarUrl != null) 'avatar_url': avatarUrl,
+      if (existingProfile != null && fullName == null) 'full_name': existingProfile['full_name'],
+      if (existingProfile != null && avatarUrl == null) 'avatar_url': existingProfile['avatar_url'],
+    };
+
+    final result = await _dataSource.updateUserProfile(user.id, updateData);
+    final model = UserProfileModel.fromJson(result);
+    // Thêm email và userMetadata từ auth user
+    return UserProfileModel(
+      id: model.id,
+      username: model.username,
+      fullName: model.fullName,
+      avatarUrl: model.avatarUrl,
+      email: user.email,
+      userMetadata: user.userMetadata,
+      createdAt: model.createdAt,
+      updatedAt: model.updatedAt,
+    );
+  }
+
+  @override
   Future<UserProfileEntity> updateUserProfile({
     required String userId,
     String? username,

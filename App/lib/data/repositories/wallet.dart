@@ -52,6 +52,12 @@ class WalletRepositoryImpl implements domain.WalletRepository {
   }
 
   @override
+  Future<WalletEntity> getOrCreateDefaultWallet(String userId) async {
+    final result = await _dataSource.getOrCreateDefaultWallet(userId);
+    return WalletModel.fromJson(result).toEntity();
+  }
+
+  @override
   Future<void> deleteWallet(String walletId) async {
     await _dataSource.deleteWallet(walletId);
   }

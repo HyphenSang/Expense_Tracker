@@ -73,6 +73,37 @@ class SupabaseDataSource {
     await _client.from('wallets').delete().eq('id', walletId);
   }
 
+  Future<Map<String, dynamic>> getOrCreateDefaultWallet(String userId) async {
+    // Tìm ví đầu tiên đang hoạt động
+    final existing = await _client
+        .from('wallets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', ascending: true)
+        .limit(1)
+        .maybeSingle();
+
+    if (existing != null) {
+      return Map<String, dynamic>.from(existing);
+    }
+
+    // Tạo ví mặc định nếu chưa có
+    final newWallet = await _client
+        .from('wallets')
+        .insert({
+          'user_id': userId,
+          'name': 'Ví tiền mặt',
+          'type': 'CASH',
+          'balance': 0,
+          'is_active': true,
+        })
+        .select()
+        .single();
+
+    return Map<String, dynamic>.from(newWallet);
+  }
+
   // Jar operations
   Future<List<Map<String, dynamic>>> getJars(String userId) async {
     final result = await _client
@@ -125,15 +156,65 @@ class SupabaseDataSource {
     return result != null ? Map<String, dynamic>.from(result) : null;
   }
 
-  Future<Map<String, dynamic>> createCategory(
-    Map<String, dynamic> data,
-  ) async {
+  Future<Map<String, dynamic>> createCategory({
+    required String userId,
+    required String name,
+    required String type,
+    String? icon,
+    String? color,
+  }) async {
+    // Kiểm tra danh mục đã tồn tại chưa
+    final existing = await findCategory(
+      userId: userId,
+      name: name,
+      type: type,
+    );
+
+    if (existing != null) {
+      throw StateError('Danh mục "$name" đã tồn tại cho loại ${type == 'EXPENSE' ? 'chi tiêu' : 'thu nhập'}.');
+    }
+
     final result = await _client
         .from('categories')
-        .insert(data)
+        .insert({
+          'user_id': userId,
+          'name': name,
+          'type': type,
+          'icon': icon ?? 'category',
+          'color': color ?? '#6B7280',
+          'is_system': false,
+        })
         .select()
         .single();
     return Map<String, dynamic>.from(result);
+  }
+
+  Future<Map<String, dynamic>> getOrCreateCategory({
+    required String userId,
+    required String categoryName,
+    required String type,
+  }) async {
+    // Tìm category hiện có
+    final existing = await findCategory(
+      userId: userId,
+      name: categoryName,
+      type: type,
+    );
+
+    if (existing != null) {
+      return existing;
+    }
+
+    // Tạo mới nếu chưa có
+    return await createCategory(
+      userId: userId,
+      name: categoryName,
+      type: type,
+    );
+  }
+
+  Future<void> deleteCategory(String categoryId) async {
+    await _client.from('categories').delete().eq('id', categoryId);
   }
 
   // User operations
@@ -193,6 +274,51 @@ class SupabaseDataSource {
 
   Stream<AuthState> authStateChanges() {
     return _client.auth.onAuthStateChange;
+  }
+
+  Future<void> reAuthenticate(String password) async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      throw Exception('Chưa đăng nhập');
+    }
+    final email = user.email;
+    if (email == null) {
+      throw Exception('Email không tồn tại');
+    }
+    
+    // Xác thực lại bằng cách sign in với mật khẩu hiện tại
+    // Điều này đảm bảo user nhập đúng mật khẩu hiện tại trước khi đổi
+    try {
+      final response = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      
+      // Kiểm tra nếu có lỗi
+      if (response.user == null) {
+        throw Exception('Mật khẩu hiện tại không đúng');
+      }
+    } catch (e) {
+      // Nếu là lỗi từ Supabase về invalid credentials
+      if (e.toString().contains('Invalid login credentials') ||
+          e.toString().contains('invalid_credentials')) {
+        throw Exception('Mật khẩu hiện tại không đúng');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> updatePassword(String newPassword) async {
+    // Cập nhật mật khẩu mới
+    // Supabase sẽ tự động cập nhật mật khẩu cho user hiện tại
+    final response = await _client.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+    
+    // Kiểm tra nếu có lỗi
+    if (response.user == null) {
+      throw Exception('Không thể cập nhật mật khẩu');
+    }
   }
 }
 

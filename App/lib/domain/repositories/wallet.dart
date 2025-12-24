@@ -23,6 +23,9 @@ abstract class WalletRepository {
     required num balance,
   });
 
+  /// Lấy ví đầu tiên của user hoặc tạo ví mặc định
+  Future<WalletEntity> getOrCreateDefaultWallet(String userId);
+
   /// Xóa ví
   Future<void> deleteWallet(String walletId);
 }

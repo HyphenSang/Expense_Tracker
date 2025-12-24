@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/wallet.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/wallet.dart';
 
 /// Màn hình thêm ví hoặc tài khoản ngân hàng.
 class AddWalletScreen extends StatefulWidget {
@@ -20,6 +22,9 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
   String _selectedType = 'CASH'; // CASH, BANK, CARD, EWALLET
   String? _selectedBank;
   bool _isCreating = false;
+
+  // Use cases
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
 
   // Danh sách ngân hàng fake
   final List<Map<String, String>> _banks = [
@@ -84,14 +89,17 @@ class _AddWalletScreenState extends State<AddWalletScreen> {
         bankName = bank['name'];
       }
 
-      await WalletService.createWallet(
+      final user = _getCurrentUser();
+      if (user == null) {
+        throw StateError('Chưa đăng nhập');
+      }
+
+      final createWallet = CreateWallet(DI.walletRepository, user.id);
+      await createWallet(
         name: _nameController.text.trim(),
         type: _selectedType,
+        balance: initialBalance,
         bankName: bankName,
-        accountNumber: _accountNumberController.text.trim().isEmpty
-            ? null
-            : _accountNumberController.text.trim(),
-        initialBalance: initialBalance,
       );
 
       if (!mounted) return;

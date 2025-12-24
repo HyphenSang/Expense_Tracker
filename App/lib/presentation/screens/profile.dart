@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/auth.dart';
-import 'package:expenses/service/user.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/user.dart';
 import 'package:expenses/presentation/screens/welcome.dart';
 import 'package:expenses/presentation/screens/help.dart';
 import 'package:expenses/presentation/screens/notifications.dart';
 import 'package:expenses/presentation/screens/personal_info.dart';
-import 'package:expenses/core/di/di.dart';
-import 'package:expenses/domain/usecases/preference/get_notifications_enabled.dart';
+import 'package:expenses/presentation/screens/security.dart';
+import 'package:expenses/domain/features/preference.dart';
 
 /// Màn hình hồ sơ người dùng.
 class ProfileScreen extends StatefulWidget {
@@ -25,6 +26,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationsEnabled = true;
 
   final _getNotificationsEnabled = GetNotificationsEnabled(DI.preferenceRepository);
+  final _signOutUseCase = SignOut(DI.authRepository);
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
+  final _getCurrentUserProfile = GetCurrentUserProfile(DI.userRepository);
+  final _ensureCurrentUserProfile = EnsureCurrentUserProfile(DI.userRepository);
 
   @override
   void initState() {
@@ -47,7 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfile() async {
-    final user = AuthService.getUser();
+    final user = _getCurrentUser();
     if (user == null) return;
 
     setState(() {
@@ -56,17 +61,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      var profile = await UserService.getCurrentUserProfile();
-      profile ??= await UserService.ensureCurrentUserProfile();
+      var profile = await _getCurrentUserProfile();
+      profile ??= await _ensureCurrentUserProfile();
 
       if (!mounted) return;
 
       setState(() {
         _username = profile?.username ??
             profile?.fullName ??
-            user.userMetadata?['username'] as String? ??
-            user.email?.split('@').first ??
+            profile?.userMetadata?['username'] as String? ??
+            profile?.email?.split('@').first ??
             'User';
+        _email = profile?.email ?? '';
       });
     } catch (e) {
       if (!mounted) return;
@@ -154,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isLoading = true;
     });
     try {
-      await AuthService.signOut();
+      await _signOutUseCase();
       if (!mounted) return;
       
       // Navigate về WelcomeScreen và xóa tất cả routes trước đó
@@ -279,9 +285,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'Bảo mật',
               subtitle: 'Mật khẩu và xác thực',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng bảo mật sẽ được bổ sung sau'),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const SecurityScreen(),
                   ),
                 );
               },

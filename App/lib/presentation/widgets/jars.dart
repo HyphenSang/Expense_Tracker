@@ -1,5 +1,5 @@
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/data/sample_data.dart';
+import 'package:expenses/domain/entities/jar.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -217,10 +217,6 @@ class JarDistributionChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalPercent = jars.fold<double>(
-      0,
-      (previousValue, element) => previousValue + _parsePercentage(element.percentage),
-    );
 
     final chart = AspectRatio(
       aspectRatio: 1,

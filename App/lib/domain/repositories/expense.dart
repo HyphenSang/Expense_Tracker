@@ -1,3 +1,8 @@
+import '../../presentation/widgets/recent_transactions.dart';
+import '../../data/sample_data.dart';
+import '../../service/expense.dart';
+import 'package:flutter/material.dart';
+
 /// Repository interface cho Expense/Analytics trong domain layer
 abstract class ExpenseRepository {
   /// Lấy tóm tắt số liệu tài chính
@@ -38,6 +43,24 @@ abstract class ExpenseRepository {
     required int year,
     required int month,
   });
+
+  /// Lấy danh sách giao dịch gần đây
+  Future<List<TransactionItemData>?> getRecentTransactions({
+    int limit = 10,
+  });
+
+  /// Lấy giao dịch theo tháng/năm
+  Future<List<TransactionItemData>?> getTransactionsByMonth({
+    required int year,
+    required int month,
+    int limit = 1000,
+  });
+
+  /// Lấy danh sách ví
+  Future<List<WalletInfo>> getWallets();
+
+  /// Lấy danh sách hũ tài chính
+  Future<List<JarData>> getJars();
 }
 
 /// Tóm tắt số liệu tài chính
@@ -79,28 +102,18 @@ class CategorySpendingSummary {
   final String name;
   final num amount;
   final double percentage;
-  final String? icon; // Icon name/identifier
-  final String? color; // Color hex code
+  final IconData icon;
+  final Color color;
 
   const CategorySpendingSummary({
     required this.name,
     required this.amount,
     required this.percentage,
-    this.icon,
-    this.color,
+    this.icon = Icons.category,
+    this.color = const Color(0xFF9E9E9E),
   });
 }
 
-/// Xu hướng chi tiêu
-class SpendingTrendItem {
-  final String label;
-  final num amount;
-  final DateTime date;
-
-  const SpendingTrendItem({
-    required this.label,
-    required this.amount,
-    required this.date,
-  });
-}
+/// Xu hướng chi tiêu (sử dụng từ ExpenseService)
+/// Note: SpendingTrendItem được định nghĩa trong ExpenseService
 

@@ -7,6 +7,8 @@ class UserProfileModel extends UserProfileEntity {
     super.username,
     super.fullName,
     super.avatarUrl,
+    super.email,
+    super.userMetadata,
     super.createdAt,
     super.updatedAt,
   });

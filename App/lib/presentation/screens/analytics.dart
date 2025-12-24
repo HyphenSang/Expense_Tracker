@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/expense.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/usecases/expense.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -17,6 +19,11 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   List<CategorySpendingSummary>? _categories;
   MonthlyComparison? _comparison;
   List<SpendingTrendItem>? _trends;
+
+  // Use cases
+  final _getSummary = GetExpenseSummary(DI.expenseRepository);
+  final _getCategoryData = GetCategoryData(DI.expenseRepository);
+  final _getAnalytics = GetAnalytics(DI.expenseRepository);
 
   @override
   void initState() {
@@ -39,19 +46,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     try {
       
       final results = await Future.wait([
-        ExpenseService.getSummaryForMonth(
+        _getSummary.forMonth(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
-        ExpenseService.getCategorySpendingForMonth(
+        _getCategoryData.getSpending(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
-        ExpenseService.getMonthComparison(
+        _getAnalytics.getMonthComparison(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
-        ExpenseService.getSpendingTrendsForMonth(
+        _getAnalytics.getSpendingTrends(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
@@ -59,20 +66,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
       final summary = results[0] as ExpenseSummary;
       final categories = results[1] as List<CategorySpendingSummary>;
-      final comparisonMap = results[2] as Map<String, dynamic>;
+      final comparison = results[2] as MonthlyComparison;
       final trends = results[3] as List<SpendingTrendItem>;
-
-      // Convert Map to MonthlyComparison
-      final prevMonth = _selectedMonth.month == 1 ? 12 : _selectedMonth.month - 1;
-      final prevYear = _selectedMonth.month == 1 ? _selectedMonth.year - 1 : _selectedMonth.year;
-      final comparison = MonthlyComparison(
-        previousMonthLabel: 'Tháng $prevMonth/$prevYear',
-        currentMonthLabel: 'Tháng ${_selectedMonth.month}/${_selectedMonth.year}',
-        previousIncome: ExpenseService.formatCurrency(comparisonMap['previous']?['income'] ?? 0),
-        previousExpense: ExpenseService.formatCurrency(comparisonMap['previous']?['expense'] ?? 0),
-        currentIncome: ExpenseService.formatCurrency(comparisonMap['current']?['income'] ?? 0),
-        currentExpense: ExpenseService.formatCurrency(comparisonMap['current']?['expense'] ?? 0),
-      );
 
       if (mounted) {
         setState(() {

@@ -26,5 +26,11 @@ abstract class AuthRepository {
 
   /// Lắng nghe thay đổi trạng thái auth
   Stream<UserProfileEntity?> authStateChanges();
+
+  /// Xác thực lại với mật khẩu hiện tại
+  Future<void> reAuthenticate(String password);
+
+  /// Cập nhật mật khẩu
+  Future<void> updatePassword(String newPassword);
 }
 

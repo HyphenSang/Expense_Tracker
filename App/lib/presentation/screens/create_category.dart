@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/category.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/usecases/auth.dart';
+import 'package:expenses/domain/usecases/category.dart';
 
 /// Màn hình tạo danh mục mới (full screen).
 class CreateCategoryScreen extends StatefulWidget {
@@ -24,6 +26,9 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
   IconData _selectedIcon = Icons.category;
   Color _selectedColor = AppColors.gray500;
   int _maxNameLength = 30;
+
+  // Use cases
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
 
   @override
   void initState() {
@@ -75,7 +80,13 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
       // Convert Color to hex string
       final colorHex = '#${_selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
 
-      await CategoryService.createCategory(
+      final user = _getCurrentUser();
+      if (user == null) {
+        throw StateError('Chưa đăng nhập');
+      }
+
+      final createCategory = CreateCategory(DI.categoryRepository, user.id);
+      await createCategory(
         name: name,
         type: _isExpense ? 'EXPENSE' : 'INCOME',
         icon: iconName,

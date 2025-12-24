@@ -85,5 +85,15 @@ class AuthRepositoryImpl implements domain.AuthRepository {
       return UserProfileModel(id: user.id).toEntity();
     });
   }
+
+  @override
+  Future<void> reAuthenticate(String password) async {
+    await _dataSource.reAuthenticate(password);
+  }
+
+  @override
+  Future<void> updatePassword(String newPassword) async {
+    await _dataSource.updatePassword(newPassword);
+  }
 }
 

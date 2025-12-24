@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/expense.dart';
+import 'package:expenses/domain/repositories/expense.dart' as domain_expense;
 import 'package:expenses/presentation/screens/add_wallet.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/expense.dart';
 
 /// Màn hình ví & tài khoản thanh toán.
 ///
@@ -17,6 +20,10 @@ class WalletsScreen extends StatefulWidget {
 class _WalletsScreenState extends State<WalletsScreen> {
   Future<List<WalletInfo>>? _walletsFuture;
 
+  // Use cases
+  final _getWallets = GetWallets(DI.expenseRepository);
+  final _getSummary = GetExpenseSummary(DI.expenseRepository);
+
   @override
   void initState() {
     super.initState();
@@ -25,7 +32,7 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
   void _loadWallets() {
     setState(() {
-      _walletsFuture = ExpenseService.getWallets();
+      _walletsFuture = _getWallets();
     });
   }
 
@@ -83,7 +90,10 @@ class _WalletsScreenState extends State<WalletsScreen> {
                 ],
               ),
               const SizedBox(height: AppSpacing.xl),
-              _WalletSummaryCard(wallets: wallets),
+              _WalletSummaryCard(
+                wallets: wallets,
+                getSummary: _getSummary,
+              ),
               const SizedBox(height: AppSpacing.xl),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -122,13 +132,17 @@ class _WalletsScreenState extends State<WalletsScreen> {
 
 class _WalletSummaryCard extends StatelessWidget {
   final List<WalletInfo> wallets;
+  final GetExpenseSummary getSummary;
 
-  const _WalletSummaryCard({required this.wallets});
+  const _WalletSummaryCard({
+    required this.wallets,
+    required this.getSummary,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<ExpenseSummary>(
-      future: ExpenseService.getSummary(),
+    return FutureBuilder<domain_expense.ExpenseSummary>(
+      future: getSummary.call(),
       builder: (context, snapshot) {
         final total = snapshot.data?.totalBalance ?? '—';
 

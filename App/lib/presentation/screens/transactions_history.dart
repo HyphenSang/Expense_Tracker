@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/expense.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/expense.dart';
 
 /// Màn hình lịch sử giao dịch với 2 tab: Hoạt động và Thống kê.
 class TransactionsHistoryScreen extends StatefulWidget {
@@ -20,13 +22,17 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   // Thống kê
   DateTime _selectedMonth = DateTime.now();
   Map<String, num>? _incomeExpense;
-  Map<String, dynamic>? _comparison;
+  MonthlyComparison? _comparison;
   List<CategorySpendingSummary>? _categorySpending;
   List<CategorySpendingSummary>? _categoryIncome; // Thêm dữ liệu thu nhập
   bool _isSubCategory = true; // true: Danh mục con, false: Danh mục cha
   final Set<String> _expandedParents = {}; // Track expanded parent categories
   bool _isExpenseSelected = true; // true: Chi tiêu được chọn, false: Thu nhập được chọn
   bool _isLoading = true;
+
+  // Use cases
+  final _getAnalytics = GetAnalytics(DI.expenseRepository);
+  final _getCategoryData = GetCategoryData(DI.expenseRepository);
 
   @override
   void initState() {
@@ -44,26 +50,26 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
     try {
       // Chạy tất cả API calls song song để tăng tốc độ load
       final results = await Future.wait([
-        ExpenseService.getIncomeExpenseForMonth(
+        _getAnalytics.getIncomeExpense(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
-        ExpenseService.getMonthComparison(
+        _getAnalytics.getMonthComparison(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
-        ExpenseService.getCategorySpendingForMonth(
+        _getCategoryData.getSpending(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
-        ExpenseService.getCategoryIncomeForMonth(
+        _getCategoryData.getIncome(
           year: _selectedMonth.year,
           month: _selectedMonth.month,
         ),
       ]);
 
       final incomeExpense = results[0] as Map<String, num>;
-      final comparison = results[1] as Map<String, dynamic>;
+      final comparison = results[1] as MonthlyComparison;
       final categories = results[2] as List<CategorySpendingSummary>;
       final incomeCategories = results[3] as List<CategorySpendingSummary>;
 
@@ -118,9 +124,25 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   Widget _buildStatisticsTab() {
     final income = _incomeExpense?['income'] ?? 0;
     final expense = _incomeExpense?['expense'] ?? 0;
-    final change = _comparison?['change'] as Map<String, num>?;
-    final expenseChange = change?['expense'] ?? 0;
-    final incomeChange = change?['income'] ?? 0;
+    
+    // Tính change từ MonthlyComparison
+    num expenseChange = 0;
+    num incomeChange = 0;
+    if (_comparison != null) {
+      // Parse currency strings to numbers (remove " ₫" and ".")
+      final parseCurrency = (String value) {
+        final cleaned = value.replaceAll(' ₫', '').replaceAll('.', '');
+        return num.tryParse(cleaned) ?? 0;
+      };
+      
+      final prevExpense = parseCurrency(_comparison!.previousExpense);
+      final currExpense = parseCurrency(_comparison!.currentExpense);
+      expenseChange = currExpense - prevExpense;
+      
+      final prevIncome = parseCurrency(_comparison!.previousIncome);
+      final currIncome = parseCurrency(_comparison!.currentIncome);
+      incomeChange = currIncome - prevIncome;
+    }
     
     // Chọn change dựa trên card được chọn
     final selectedChange = _isExpenseSelected ? expenseChange : incomeChange;

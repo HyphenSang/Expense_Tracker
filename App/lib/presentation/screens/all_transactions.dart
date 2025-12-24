@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/expense.dart';
-import 'package:expenses/service/category.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/usecases/auth.dart';
+import 'package:expenses/domain/usecases/category.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
+import 'package:expenses/domain/usecases/expense.dart';
 
 /// Màn hình xem tất cả giao dịch, sắp xếp theo ngày (gần nhất ở trên).
 class AllTransactionsScreen extends StatefulWidget {
@@ -14,7 +16,7 @@ class AllTransactionsScreen extends StatefulWidget {
 
 class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   DateTime _selectedMonth = DateTime.now();
-  late Future<List<TransactionItemData>> _transactionsFuture;
+  late Future<List<TransactionItemData>?> _transactionsFuture;
   
   // Filter states
   String? _selectedType; // null = tất cả, 'INCOME', 'EXPENSE'
@@ -23,6 +25,9 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   String _sortOrder = 'newest'; // 'newest', 'oldest', 'amount_high', 'amount_low'
   
   final TextEditingController _searchController = TextEditingController();
+  
+  // Use cases
+  final _getTransactions = GetTransactions(DI.expenseRepository);
 
   @override
   void initState() {
@@ -49,7 +54,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
   }
 
   void _loadTransactions() {
-    _transactionsFuture = ExpenseService.getTransactionsByMonth(
+    _transactionsFuture = _getTransactions.byMonth(
       year: _selectedMonth.year,
       month: _selectedMonth.month,
       limit: 1000,
@@ -162,14 +167,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<List<TransactionItemData>>(
+      body: FutureBuilder<List<TransactionItemData>?>(
         future: _transactionsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final allTransactions = snapshot.data ?? [];
+          final allTransactions = snapshot.data ?? <TransactionItemData>[];
           final transactions = _filterTransactions(allTransactions);
 
           // Nhóm giao dịch theo tháng (ở đây chỉ một tháng được chọn)
@@ -445,9 +450,21 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
 
   Future<void> _loadCategories() async {
     try {
-      final categories = await CategoryService.getCategories();
+      final getCurrentUser = GetCurrentUser(DI.authRepository);
+      final user = getCurrentUser();
+      if (user == null) return;
+      
+      final getCategories = GetCategories(DI.categoryRepository, user.id);
+      final categories = await getCategories();
+      
       setState(() {
-        _categories = categories;
+        _categories = categories.map((cat) => {
+          'id': cat.id,
+          'name': cat.name,
+          'type': cat.type,
+          'icon': cat.icon,
+          'color': cat.color,
+        }).toList();
         _isLoadingCategories = false;
       });
     } catch (e) {
