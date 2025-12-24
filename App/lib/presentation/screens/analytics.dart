@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/expense.dart';
 import 'package:expenses/core/di/di.dart';
-import 'package:expenses/domain/usecases/expense.dart';
+import 'package:expenses/domain/features/expense.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
