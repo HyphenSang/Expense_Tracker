@@ -75,7 +75,7 @@ class _RegisScreenState extends State<RegisScreen> {
       // Navigate to Home screen
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
+        MaterialPageRoute(builder: (context) => HomeScreen()),
       );
     } catch (e) {
       if (mounted) {

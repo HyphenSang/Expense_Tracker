@@ -25,7 +25,7 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
   bool _isCreating = false;
   IconData _selectedIcon = Icons.category;
   Color _selectedColor = AppColors.gray500;
-  int _maxNameLength = 30;
+  final int _maxNameLength = 30;
 
   // Use cases
   final _getCurrentUser = GetCurrentUser(DI.authRepository);
@@ -717,4 +717,3 @@ class _IconPickerSheetState extends State<_IconPickerSheet> {
     );
   }
 }
-

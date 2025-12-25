@@ -86,8 +86,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _selectedCategory == null) return;
 
-    final amountText = _amountController.text.replaceAll('.', '');
-    final amount = int.tryParse(amountText) ?? 0;
+    final amount = int.tryParse(_amountController.text) ?? 0;
     if (amount <= 0) return;
 
     setState(() {
@@ -207,22 +206,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _amountController,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-                    _ThousandSeparatorFormatter(),
-                  ],
                   decoration: const InputDecoration(
                     hintText: '0',
                     border: OutlineInputBorder(),
                     prefixText: '₫ ',
                   ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                  ],
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Vui lòng nhập số tiền';
                     }
-                    final raw = value.replaceAll('.', '');
-                    final amount = int.tryParse(raw) ?? 0;
+                    final amount = int.tryParse(value) ?? 0;
                     if (amount <= 0) {
                       return 'Số tiền phải lớn hơn 0';
                     }
@@ -1032,32 +1029,4 @@ class _CategoryItem {
     this.type = 'EXPENSE', // Mặc định là EXPENSE
   });
 }
-
-/// Format số nguyên sang chuỗi có dấu chấm ngăn cách hàng nghìn.
-/// Format số nguyên sang chuỗi có dấu chấm ngăn cách hàng nghìn.
-class _ThousandSeparatorFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    var text = newValue.text.replaceAll('.', '');
-    if (text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-    final buffer = StringBuffer();
-    for (var i = 0; i < text.length; i++) {
-      final reversedIndex = text.length - i - 1;
-      buffer.write(text[i]);
-      final isThousand = reversedIndex % 3 == 0 && i != text.length - 1;
-      if (isThousand) buffer.write('.');
-    }
-    final newText = buffer.toString();
-    return TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
-    );
-  }
-}
-
 

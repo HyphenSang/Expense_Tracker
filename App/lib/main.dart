@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: isLoggedIn ? const HomeScreen() : const WelcomeScreen(),
+      home: isLoggedIn ? HomeScreen() : WelcomeScreen(),
     );
   }
 }
