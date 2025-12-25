@@ -1,3 +1,0 @@
-id,user_id,name,type,bank_name,account_number,balance,is_active,last_sync_at,created_at,updated_at
-06c7e77f-172c-4e23-acaf-00f381ec67c9,72ea62e1-6e68-4797-8f11-4dc748a68682,jj;k4132124,BANK,Vietcombank,4694684,10000.00,true,,2025-12-23 09:12:48.25946+00,2025-12-23 09:12:48.25946+00
-5c336a9d-1290-4e11-8612-5028f5c7dd54,72ea62e1-6e68-4797-8f11-4dc748a68682,Ví tiền mặt,CASH,,,153345000.00,true,,2025-12-04 16:15:03.76252+00,2025-12-25 17:22:24.484902+00
