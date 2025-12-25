@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/expense.dart';
-import 'package:expenses/domain/repositories/expense.dart' as domain;
-import 'package:expenses/service/expense.dart' show SpendingTrendItem, ExpenseService;
+import 'package:expenses/domain/repositories/expense.dart' as domain_expense;
+import 'package:expenses/service/expense.dart' show ExpenseService, SpendingTrendItem;
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -16,9 +16,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   DateTime _selectedMonth = DateTime.now();
   bool _isLoading = false;
   String? _error;
-  domain.ExpenseSummary? _summary;
-  List<domain.CategorySpendingSummary>? _categories;
-  domain.MonthlyComparison? _comparison;
+  domain_expense.ExpenseSummary? _summary;
+  List<domain_expense.CategorySpendingSummary>? _categories;
+  domain_expense.MonthlyComparison? _comparison;
   List<SpendingTrendItem>? _trends;
 
   // Use cases
@@ -43,9 +43,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   }
 
   Future<void> _loadAnalytics() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    
     try {
-      
       final results = await Future.wait([
         _getSummary.forMonth(
           year: _selectedMonth.year,
@@ -65,33 +68,41 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ),
       ]);
 
-      final summary = results[0] as domain.ExpenseSummary;
-      final categories = results[1] as List<domain.CategorySpendingSummary>;
-      final comparison = results[2] as domain.MonthlyComparison;
+      if (!mounted) return;
+
+      final summary = results[0] as domain_expense.ExpenseSummary;
+      final categories = results[1] as List<domain_expense.CategorySpendingSummary>;
+      final comparison = results[2] as domain_expense.MonthlyComparison;
       final trends = results[3] as List<SpendingTrendItem>;
 
-      if (mounted) {
-        setState(() {
-          _summary = summary;
-          _categories = categories;
-          _comparison = comparison;
-          _trends = trends;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Không thể tải dữ liệu: $e';
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Không thể tải dữ liệu: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      setState(() {
+        _summary = summary;
+        _categories = categories;
+        _comparison = comparison;
+        _trends = trends;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e, stackTrace) {
+      if (!mounted) return;
+      
+      final errorMessage = 'Không thể tải thống kê: $e';
+      setState(() {
+        _error = errorMessage;
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      
+      // Log để debug
+      debugPrint('Analytics load error: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
@@ -236,7 +247,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
 /// Hàng trên cùng: Thu nhập / Chi tiêu (tháng hiện tại).
 class _IncomeExpenseRow extends StatelessWidget {
-  final domain.ExpenseSummary summary;
+  final domain_expense.ExpenseSummary summary;
 
   const _IncomeExpenseRow({required this.summary});
 
@@ -326,7 +337,7 @@ class _SummaryCard extends StatelessWidget {
 
 /// Card "Chi tiêu theo danh mục".
 class _CategorySpendingCard extends StatelessWidget {
-  final List<domain.CategorySpendingSummary> categories;
+  final List<domain_expense.CategorySpendingSummary> categories;
 
   const _CategorySpendingCard({required this.categories});
 
@@ -414,7 +425,7 @@ class _CategorySpendingCard extends StatelessWidget {
 
 /// Card so sánh tháng trước / tháng này.
 class _MonthlyComparisonCard extends StatelessWidget {
-  final domain.MonthlyComparison comparison;
+  final domain_expense.MonthlyComparison comparison;
 
   const _MonthlyComparisonCard({required this.comparison});
 
@@ -609,63 +620,63 @@ class _SpendingTrendCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          ...trends.map<Widget>(
-            (SpendingTrendItem t) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      t.label,
+          ...trends.map(
+            (t) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        t.label,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                              color: AppColors.gray800,
+                            ),
+                      ),
+                    ),
+                    Text(
+                      t.amount,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.gray800,
+                            color: AppColors.gray900,
+                            fontWeight: FontWeight.w600,
                           ),
                     ),
-                  ),
-                  Text(
-                    t.amount,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.gray900,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xs,
+                    const SizedBox(width: AppSpacing.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: t.isIncrease
+                            ? AppColors.success.withValues(alpha: 0.1)
+                            : AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            t.isIncrease
+                                ? Icons.arrow_upward_rounded
+                                : Icons.arrow_downward_rounded,
+                            size: 14,
+                            color: t.isIncrease ? AppColors.success : AppColors.error,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            t.changePercent,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                                  color: t.isIncrease
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: t.isIncrease
-                          ? AppColors.success.withValues(alpha: 0.1)
-                          : AppColors.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          t.isIncrease
-                              ? Icons.arrow_upward_rounded
-                              : Icons.arrow_downward_rounded,
-                          size: 14,
-                          color: t.isIncrease ? AppColors.success : AppColors.error,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          t.changePercent,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                                color: t.isIncrease
-                                    ? AppColors.success
-                                    : AppColors.error,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
           ),
         ],
       ),

@@ -1,11 +1,11 @@
-import '../repositories/expense.dart';
+import '../repositories/expense.dart' as domain_expense;
 import '../../presentation/widgets/recent_transactions.dart';
 import '../../service/expense.dart' hide MonthlyComparison, ExpenseSummary, CategorySpendingSummary;
 import '../../data/sample_data.dart';
 
 /// Use case để lấy giao dịch
 class GetTransactions {
-  final ExpenseRepository _repository;
+  final domain_expense.ExpenseRepository _repository;
 
   GetTransactions(this._repository);
 
@@ -30,7 +30,7 @@ class GetTransactions {
 
 /// Use case để lấy dữ liệu phân tích/thống kê
 class GetAnalytics {
-  final ExpenseRepository _repository;
+  final domain_expense.ExpenseRepository _repository;
 
   GetAnalytics(this._repository);
 
@@ -57,7 +57,7 @@ class GetAnalytics {
   }
 
   /// So sánh tháng hiện tại với tháng trước
-  Future<MonthlyComparison> getMonthComparison({
+  Future<domain_expense.MonthlyComparison> getMonthComparison({
     required int year,
     required int month,
   }) async {
@@ -67,12 +67,12 @@ class GetAnalytics {
 
 /// Use case để lấy dữ liệu theo danh mục (chi tiêu hoặc thu nhập)
 class GetCategoryData {
-  final ExpenseRepository _repository;
+  final domain_expense.ExpenseRepository _repository;
 
   GetCategoryData(this._repository);
 
   /// Lấy chi tiêu theo danh mục trong tháng
-  Future<List<CategorySpendingSummary>> getSpending({
+  Future<List<domain_expense.CategorySpendingSummary>> getSpending({
     required int year,
     required int month,
   }) async {
@@ -83,7 +83,7 @@ class GetCategoryData {
   }
 
   /// Lấy thu nhập theo danh mục trong tháng
-  Future<List<CategorySpendingSummary>> getIncome({
+  Future<List<domain_expense.CategorySpendingSummary>> getIncome({
     required int year,
     required int month,
   }) async {
@@ -96,17 +96,17 @@ class GetCategoryData {
 
 /// Use case để lấy tóm tắt số liệu tài chính
 class GetExpenseSummary {
-  final ExpenseRepository _repository;
+  final domain_expense.ExpenseRepository _repository;
 
   GetExpenseSummary(this._repository);
 
   /// Lấy tóm tắt số liệu cho tháng hiện tại
-  Future<ExpenseSummary> call() async {
+  Future<domain_expense.ExpenseSummary> call() async {
     return await _repository.getSummary();
   }
 
   /// Lấy tóm tắt số liệu cho tháng cụ thể
-  Future<ExpenseSummary> forMonth({
+  Future<domain_expense.ExpenseSummary> forMonth({
     required int year,
     required int month,
   }) async {
@@ -116,7 +116,7 @@ class GetExpenseSummary {
 
 /// Use case để lấy danh sách ví
 class GetWallets {
-  final ExpenseRepository _repository;
+  final domain_expense.ExpenseRepository _repository;
 
   GetWallets(this._repository);
 
@@ -127,7 +127,7 @@ class GetWallets {
 
 /// Use case để lấy danh sách hũ
 class GetJars {
-  final ExpenseRepository _repository;
+  final domain_expense.ExpenseRepository _repository;
 
   GetJars(this._repository);
 

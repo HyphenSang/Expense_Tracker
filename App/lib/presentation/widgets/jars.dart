@@ -225,8 +225,8 @@ class JarDistributionChart extends StatelessWidget {
           sectionsSpace: 3,
           centerSpaceRadius: 70,
           sections: jars
-              .map<PieChartSectionData>(
-                (JarData jar) {
+              .map(
+                (jar) {
                   final percentageValue = _parsePercentage(jar.percentage);
                   return PieChartSectionData(
                     color: jar.color,
@@ -313,8 +313,8 @@ class _LegendList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: jars
-          .map<Widget>(
-            (JarData jar) => Padding(
+          .map(
+            (jar) => Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: Row(
                 children: [

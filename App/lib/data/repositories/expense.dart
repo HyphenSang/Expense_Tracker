@@ -1,15 +1,15 @@
-import '../../domain/repositories/expense.dart' as domain;
+import '../../domain/repositories/expense.dart' as domain_expense;
 import '../datasources/supabase.dart';
 import '../../core/supabase_flutter.dart';
 import '../../common/theme.dart';
 import '../../presentation/widgets/recent_transactions.dart';
 import '../../data/sample_data.dart';
-import '../../service/expense.dart';
+import '../../service/expense.dart' hide MonthlyComparison, ExpenseSummary, CategorySpendingSummary;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 /// Implementation của ExpenseRepository
-class ExpenseRepositoryImpl implements domain.ExpenseRepository {
+class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
   static SupabaseClient get _client => SupabaseConfig.client;
 
   ExpenseRepositoryImpl(SupabaseDataSource dataSource) {
@@ -33,7 +33,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
   }
 
   @override
-  Future<domain.ExpenseSummary> getSummary() async {
+  Future<domain_expense.ExpenseSummary> getSummary() async {
     final user = _currentUser;
     if (user == null) {
       throw StateError('Chưa đăng nhập – không thể tải dữ liệu tài chính.');
@@ -74,7 +74,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
 
     final saved = income - expense;
 
-    return domain.ExpenseSummary(
+    return domain_expense.ExpenseSummary(
       totalBalance: _formatCurrency(totalBalance),
       monthlyIncome: _formatCurrency(income),
       monthlyExpense: _formatCurrency(expense),
@@ -83,7 +83,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
   }
 
   @override
-  Future<domain.ExpenseSummary> getSummaryForMonth({
+  Future<domain_expense.ExpenseSummary> getSummaryForMonth({
     required int year,
     required int month,
   }) async {
@@ -128,7 +128,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
 
     final saved = income - expense;
 
-    return domain.ExpenseSummary(
+    return domain_expense.ExpenseSummary(
       totalBalance: _formatCurrency(totalBalance),
       monthlyIncome: _formatCurrency(income),
       monthlyExpense: _formatCurrency(expense),
@@ -168,7 +168,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
   }
 
   @override
-  Future<domain.MonthlyComparison> getMonthComparison({
+  Future<domain_expense.MonthlyComparison> getMonthComparison({
     required int year,
     required int month,
   }) async {
@@ -215,7 +215,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
 
     String monthLabel(int m) => 'Tháng $m';
 
-    return domain.MonthlyComparison(
+    return domain_expense.MonthlyComparison(
       previousMonthLabel: monthLabel(previousStart.month),
       currentMonthLabel: monthLabel(currentStart.month),
       previousIncome: _formatCurrency(prevIncome),
@@ -226,7 +226,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
   }
 
   @override
-  Future<List<domain.CategorySpendingSummary>> getCategorySpendingForMonth({
+  Future<List<domain_expense.CategorySpendingSummary>> getCategorySpendingForMonth({
     required int year,
     required int month,
   }) async {
@@ -275,7 +275,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
             final icon = defaultInfo?['icon'] as IconData? ?? Icons.category;
             final color = defaultInfo?['color'] as Color? ?? AppColors.gray500;
             
-            return domain.CategorySpendingSummary(
+            return domain_expense.CategorySpendingSummary(
               name: e.key,
               amount: e.value,
               percentage: (e.value * 100.0) / total,
@@ -291,7 +291,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
   }
 
   @override
-  Future<List<domain.CategorySpendingSummary>> getCategoryIncomeForMonth({
+  Future<List<domain_expense.CategorySpendingSummary>> getCategoryIncomeForMonth({
     required int year,
     required int month,
   }) async {
@@ -340,7 +340,7 @@ class ExpenseRepositoryImpl implements domain.ExpenseRepository {
             final icon = defaultInfo?['icon'] as IconData? ?? Icons.category;
             final color = defaultInfo?['color'] as Color? ?? AppColors.success;
             
-            return domain.CategorySpendingSummary(
+            return domain_expense.CategorySpendingSummary(
               name: e.key,
               amount: e.value,
               percentage: (e.value * 100.0) / total,

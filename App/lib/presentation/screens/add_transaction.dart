@@ -209,13 +209,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   controller: _amountController,
                   keyboardType: TextInputType.number,
                   inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
+                    FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
                     _ThousandSeparatorFormatter(),
                   ],
                   decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.attach_money),
-                    suffixText: 'đ',
-                    hintText: '0 đ',
+                    hintText: '0',
+                    border: OutlineInputBorder(),
+                    prefixText: '₫ ',
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -1033,6 +1033,7 @@ class _CategoryItem {
   });
 }
 
+/// Format số nguyên sang chuỗi có dấu chấm ngăn cách hàng nghìn.
 /// Format số nguyên sang chuỗi có dấu chấm ngăn cách hàng nghìn.
 class _ThousandSeparatorFormatter extends TextInputFormatter {
   @override
