@@ -206,10 +206,44 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _amountController,
-                  decoration: const InputDecoration(
-                    hintText: '0',
-                    border: OutlineInputBorder(),
-                    prefixText: '₫ ',
+                  decoration: InputDecoration(
+                    hintText: '0 đ',
+                    hintStyle: TextStyle(color: AppColors.gray400),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.lg,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.gray300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.gray300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.primary),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.lg),
+                      child: Align(
+                        widthFactor: 1.0,
+                        child: Text(
+                          '\$',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.gray900,
+                          ),
+                        ),
+                      ),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 30,
+                      minHeight: 0,
+                    ),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [
@@ -272,8 +306,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: _pickCategory,
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Tạo danh mục mới'),
+                    icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+                    label: const Text(
+                      'Tạo danh mục mới',
+                      style: TextStyle(color: AppColors.primary),
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
@@ -316,10 +353,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Ghi chú (tùy chọn)',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.gray700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _noteController,
                   decoration: const InputDecoration(
-                    labelText: 'Ghi chú (tùy chọn)',
+                    hintText: 'Nhập ghi chú',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
                   maxLines: 2,
                 ),
@@ -328,14 +376,33 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: !_isSubmitting && isValid ? _submit : null,
-                    child: Text(_isSubmitting ? 'Đang lưu...' : 'Thêm giao dịch'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                      backgroundColor: isValid && !_isSubmitting
+                          ? AppColors.primary
+                          : AppColors.gray300,
+                      foregroundColor: isValid && !_isSubmitting
+                          ? AppColors.gray900
+                          : AppColors.gray500,
+                      disabledBackgroundColor: AppColors.gray300,
+                      disabledForegroundColor: AppColors.gray500,
+                    ),
+                    child: Text(
+                      _isSubmitting ? 'Đang lưu...' : 'Thêm giao dịch',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Center(
                   child: TextButton(
                     onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Thêm vào lúc khác'),
+                    child: const Text(
+                      'Thêm vào lúc khác',
+                      style: TextStyle(color: AppColors.primary),
+                    ),
                   ),
                 ),
               ],
