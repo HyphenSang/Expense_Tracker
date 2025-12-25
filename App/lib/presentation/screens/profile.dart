@@ -9,6 +9,7 @@ import 'package:expenses/presentation/screens/help.dart';
 import 'package:expenses/presentation/screens/notifications.dart';
 import 'package:expenses/presentation/screens/personal_info.dart';
 import 'package:expenses/presentation/screens/security.dart';
+import 'package:expenses/presentation/screens/budgets.dart';
 import 'package:expenses/domain/features/preference.dart';
 
 /// Màn hình hồ sơ người dùng.
@@ -300,6 +301,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => const NotificationsScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildSettingTile(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Ngân sách',
+              subtitle: 'Quản lý ngân sách chi tiêu',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const BudgetsScreen(),
                   ),
                 );
               },
