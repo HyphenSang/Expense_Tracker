@@ -1,5 +1,5 @@
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/domain/entities/jar.dart';
+import 'package:expenses/data/sample_data.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -225,8 +225,8 @@ class JarDistributionChart extends StatelessWidget {
           sectionsSpace: 3,
           centerSpaceRadius: 70,
           sections: jars
-              .map(
-                (jar) {
+              .map<PieChartSectionData>(
+                (JarData jar) {
                   final percentageValue = _parsePercentage(jar.percentage);
                   return PieChartSectionData(
                     color: jar.color,
@@ -313,8 +313,8 @@ class _LegendList extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: jars
-          .map(
-            (jar) => Padding(
+          .map<Widget>(
+            (JarData jar) => Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: Row(
                 children: [

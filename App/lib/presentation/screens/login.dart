@@ -3,7 +3,7 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
 import 'package:expenses/core/di/di.dart';
-import 'package:expenses/domain/usecases/auth.dart';
+import 'package:expenses/domain/features/auth.dart';
 
 class LoginScreen extends StatefulWidget {
   final String email;

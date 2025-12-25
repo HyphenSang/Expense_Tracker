@@ -13,12 +13,12 @@ import 'package:expenses/presentation/widgets/jars.dart';
 import 'package:expenses/presentation/widgets/quick_stats.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 import 'package:expenses/presentation/widgets/total_balance.dart';
-import 'package:expenses/service/expense.dart';
 import 'package:expenses/core/di/di.dart';
-import 'package:expenses/domain/usecases/auth.dart';
-import 'package:expenses/domain/usecases/user.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/user.dart';
 import 'package:expenses/service/notification_realtime.dart';
-import 'package:expenses/domain/usecases/expense.dart';
+import 'package:expenses/domain/features/expense.dart';
+import 'package:expenses/domain/repositories/expense.dart' as domain;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   late ScrollController _scrollController;
   String _username = 'User';
   int _currentIndex = 0;
-  ExpenseSummary? _summary;
+  domain.ExpenseSummary? _summary;
   List<JarData>? _jars;
   List<TransactionItemData>? _recentTransactions;
   bool _isLoading = true;
@@ -109,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _getTransactions.getRecent(limit: 10),
       ]);
 
-      final summary = results[0] as ExpenseSummary;
+      final summary = results[0] as domain.ExpenseSummary;
       final jars = results[1] as List<JarData>;
       final txs = results[2] as List<TransactionItemData>?;
 

@@ -4,8 +4,8 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/service/notification_realtime.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/entities/notification.dart' as domain;
-import 'package:expenses/domain/usecases/preference.dart';
-import 'package:expenses/domain/usecases/notification.dart';
+import 'package:expenses/domain/features/preference.dart';
+import 'package:expenses/domain/features/notification.dart';
 
 /// Màn hình thông báo.
 class NotificationsScreen extends StatefulWidget {

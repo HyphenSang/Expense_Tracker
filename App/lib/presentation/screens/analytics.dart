@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/expense.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/expense.dart';
+import 'package:expenses/domain/repositories/expense.dart' as domain;
+import 'package:expenses/service/expense.dart' show SpendingTrendItem, ExpenseService;
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -15,9 +16,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   DateTime _selectedMonth = DateTime.now();
   bool _isLoading = false;
   String? _error;
-  ExpenseSummary? _summary;
-  List<CategorySpendingSummary>? _categories;
-  MonthlyComparison? _comparison;
+  domain.ExpenseSummary? _summary;
+  List<domain.CategorySpendingSummary>? _categories;
+  domain.MonthlyComparison? _comparison;
   List<SpendingTrendItem>? _trends;
 
   // Use cases
@@ -64,9 +65,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
         ),
       ]);
 
-      final summary = results[0] as ExpenseSummary;
-      final categories = results[1] as List<CategorySpendingSummary>;
-      final comparison = results[2] as MonthlyComparison;
+      final summary = results[0] as domain.ExpenseSummary;
+      final categories = results[1] as List<domain.CategorySpendingSummary>;
+      final comparison = results[2] as domain.MonthlyComparison;
       final trends = results[3] as List<SpendingTrendItem>;
 
       if (mounted) {
@@ -235,7 +236,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 
 /// Hàng trên cùng: Thu nhập / Chi tiêu (tháng hiện tại).
 class _IncomeExpenseRow extends StatelessWidget {
-  final ExpenseSummary summary;
+  final domain.ExpenseSummary summary;
 
   const _IncomeExpenseRow({required this.summary});
 
@@ -325,7 +326,7 @@ class _SummaryCard extends StatelessWidget {
 
 /// Card "Chi tiêu theo danh mục".
 class _CategorySpendingCard extends StatelessWidget {
-  final List<CategorySpendingSummary> categories;
+  final List<domain.CategorySpendingSummary> categories;
 
   const _CategorySpendingCard({required this.categories});
 
@@ -413,7 +414,7 @@ class _CategorySpendingCard extends StatelessWidget {
 
 /// Card so sánh tháng trước / tháng này.
 class _MonthlyComparisonCard extends StatelessWidget {
-  final MonthlyComparison comparison;
+  final domain.MonthlyComparison comparison;
 
   const _MonthlyComparisonCard({required this.comparison});
 
@@ -608,8 +609,8 @@ class _SpendingTrendCard extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          ...trends.map(
-            (t) => Padding(
+          ...trends.map<Widget>(
+            (SpendingTrendItem t) => Padding(
               padding: const EdgeInsets.only(bottom: AppSpacing.sm),
               child: Row(
                 children: [

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/expense.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/expense.dart';
+import 'package:expenses/domain/repositories/expense.dart' as domain;
+import 'package:expenses/service/expense.dart' show ExpenseService;
 
 /// Màn hình lịch sử giao dịch với 2 tab: Hoạt động và Thống kê.
 class TransactionsHistoryScreen extends StatefulWidget {
@@ -22,9 +23,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   // Thống kê
   DateTime _selectedMonth = DateTime.now();
   Map<String, num>? _incomeExpense;
-  MonthlyComparison? _comparison;
-  List<CategorySpendingSummary>? _categorySpending;
-  List<CategorySpendingSummary>? _categoryIncome; // Thêm dữ liệu thu nhập
+  domain.MonthlyComparison? _comparison;
+  List<domain.CategorySpendingSummary>? _categorySpending;
+  List<domain.CategorySpendingSummary>? _categoryIncome; // Thêm dữ liệu thu nhập
   bool _isSubCategory = true; // true: Danh mục con, false: Danh mục cha
   final Set<String> _expandedParents = {}; // Track expanded parent categories
   bool _isExpenseSelected = true; // true: Chi tiêu được chọn, false: Thu nhập được chọn
@@ -69,9 +70,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
       ]);
 
       final incomeExpense = results[0] as Map<String, num>;
-      final comparison = results[1] as MonthlyComparison;
-      final categories = results[2] as List<CategorySpendingSummary>;
-      final incomeCategories = results[3] as List<CategorySpendingSummary>;
+      final comparison = results[1] as domain.MonthlyComparison;
+      final categories = results[2] as List<domain.CategorySpendingSummary>;
+      final incomeCategories = results[3] as List<domain.CategorySpendingSummary>;
 
       if (mounted) {
         setState(() {
@@ -355,9 +356,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   }
 
   /// Nhóm categories thành parent categories.
-  List<Widget> _buildParentCategories(List<CategorySpendingSummary> categories) {
+  List<Widget> _buildParentCategories(List<domain.CategorySpendingSummary> categories) {
     // Mapping categories vào parent groups
-    final Map<String, List<CategorySpendingSummary>> parentGroups = {};
+    final Map<String, List<domain.CategorySpendingSummary>> parentGroups = {};
     
     for (final cat in categories) {
       String parentName;
@@ -495,7 +496,7 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _DonutChart extends StatelessWidget {
-  final List<CategorySpendingSummary> categories;
+  final List<domain.CategorySpendingSummary> categories;
 
   const _DonutChart({required this.categories});
 
@@ -701,7 +702,7 @@ class _ParentCategoryItem extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool isExpanded;
-  final List<CategorySpendingSummary> subCategories;
+  final List<domain.CategorySpendingSummary> subCategories;
   final VoidCallback onToggle;
 
   const _ParentCategoryItem({
