@@ -103,5 +103,59 @@ class JarRepositoryImpl implements domain.JarRepository {
   }) async {
     await _dataSource.updateJar(jarId, {'balance': balance.round()});
   }
+
+  @override
+  Future<void> redistributeJarsByTotalBalance(String userId) async {
+    try {
+      // Đảm bảo có jars mặc định trước khi chia lại
+      await ensureDefaultJars(userId);
+
+      // Lấy total balance từ tất cả wallets đang hoạt động
+      final wallets = await _dataSource.getWallets(userId);
+      num totalBalance = 0;
+      for (final wallet in wallets) {
+        totalBalance += (wallet['balance'] as num?) ?? 0;
+      }
+
+      // Lấy danh sách tất cả các hũ (bao gồm cả không active)
+      final allJars = await _dataSource.getAllJars(userId);
+      final activeJars = allJars.where((j) => (j['is_active'] as bool?) ?? true).toList();
+
+      if (activeJars.isEmpty) {
+        // Nếu không có hũ active, không làm gì
+        return;
+      }
+
+      if (totalBalance <= 0) {
+        // Nếu total balance = 0, set balance = 0 cho tất cả hũ
+        for (final jar in allJars) {
+          await _dataSource.updateJar(jar['id'] as String, {'balance': 0});
+        }
+        return;
+      }
+
+      // Chia lại theo %: jar.balance = totalBalance * jar.percentage / 100
+      num remaining = totalBalance;
+      for (var i = 0; i < activeJars.length; i++) {
+        final jar = activeJars[i];
+        final jarId = jar['id'] as String;
+        final percentage = (jar['percentage'] as num?) ?? 0;
+        
+        num allocated;
+        if (i == activeJars.length - 1) {
+          // Hũ cuối cùng nhận phần còn lại để đảm bảo tổng = totalBalance
+          allocated = remaining;
+        } else {
+          allocated = (totalBalance * percentage / 100).round();
+          remaining -= allocated;
+        }
+
+        await _dataSource.updateJar(jarId, {'balance': allocated});
+      }
+    } catch (e) {
+      // Log lỗi nhưng không throw để không làm gián đoạn flow
+      rethrow;
+    }
+  }
 }
 

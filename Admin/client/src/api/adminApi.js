@@ -1,16 +1,28 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
 /**
- * Lấy token từ localStorage hoặc từ URL params
- * Token có thể được lưu khi login từ Flutter app
+ * Lấy token từ Supabase session (ưu tiên) hoặc localStorage
  * Export để dùng trong ProtectedRoute
  */
-export const getAuthToken = () => {
-  // Lấy từ localStorage (nếu Flutter app đã lưu)
+export const getAuthToken = async () => {
+  // Ưu tiên: Lấy từ Supabase session (Supabase client tự động quản lý)
+  try {
+    const { supabaseClient } = await import('../lib/supabaseClient');
+    if (supabaseClient) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session?.access_token) {
+        return session.access_token;
+      }
+    }
+  } catch (error) {
+    console.warn('Không thể lấy token từ Supabase session:', error);
+  }
+
+  // Fallback: Lấy từ localStorage (nếu Flutter app đã lưu)
   const tokenFromStorage = localStorage.getItem('supabase_access_token');
   if (tokenFromStorage) return tokenFromStorage;
 
-  // Lấy từ URL params (nếu redirect từ Flutter app với token)
+  // Fallback: Lấy từ URL params (nếu redirect từ Flutter app với token)
   const urlParams = new URLSearchParams(window.location.search);
   const tokenFromUrl = urlParams.get('token');
   if (tokenFromUrl) {
@@ -42,21 +54,29 @@ const handleResponse = async (response) => {
 
 /**
  * Fetch với authentication header
+ * Tự động lấy token từ Supabase session
  */
-const fetchWithAuth = (url, options = {}) => {
-  const token = getAuthToken();
+const fetchWithAuth = async (url, options = {}) => {
+  const token = await getAuthToken();
   
-  if (!token) {
-    return Promise.reject(new Error('Chưa đăng nhập. Vui lòng đăng nhập từ Flutter app trước.'));
+  // Tạm thời không bắt buộc token - gọi trực tiếp từ Supabase
+  // if (!token) {
+  //   return Promise.reject(new Error('Chưa đăng nhập. Vui lòng đăng nhập từ Flutter app trước.'));
+  // }
+
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+
+  // Chỉ thêm Authorization header nếu có token
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   return fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...options.headers,
-    },
+    headers,
   }).then(handleResponse);
 };
 
@@ -76,9 +96,11 @@ export const createExpense = (payload) =>
   });
 
 /**
- * Set token từ Flutter app (có thể gọi từ window hoặc localStorage)
+ * Set token từ Flutter app (fallback - chỉ dùng khi cần)
+ * Supabase client tự động quản lý token, không cần lưu thủ công
  */
 export const setAuthToken = (token) => {
+  // Chỉ lưu vào localStorage như fallback (nếu Supabase session không có)
   if (token) {
     localStorage.setItem('supabase_access_token', token);
   } else {
@@ -90,13 +112,13 @@ export const setAuthToken = (token) => {
  * Logout - Xóa token và clear authentication
  */
 export const logout = async () => {
-  // Xóa token từ localStorage
-  localStorage.removeItem('supabase_access_token');
-  
-  // Xóa Supabase session (nếu có)
+  // Xóa Supabase session (sẽ tự động xóa token)
   const { supabaseClient } = await import('../lib/supabaseClient');
   if (supabaseClient) {
     await supabaseClient.auth.signOut();
   }
+  
+  // Xóa token từ localStorage (fallback)
+  localStorage.removeItem('supabase_access_token');
 };
 

@@ -79,8 +79,8 @@ const LoginPage = () => {
         throw new Error('Bạn không có quyền truy cập trang quản trị. Chỉ admin users mới có thể đăng nhập.');
       }
 
-      // 3. Lưu token và redirect
-      setAuthToken(token);
+      // 3. Redirect (Supabase client đã tự động lưu token vào session)
+      // Không cần lưu thủ công nữa vì Supabase client tự quản lý
       navigate('/', { replace: true });
     } catch (err) {
       setError(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');

@@ -27,9 +27,9 @@ class DI {
 
   // Repositories
   static final domain.AuthRepository _authRepository = AuthRepositoryImpl(_supabaseDataSource);
-  static final domain_transaction.TransactionRepository _transactionRepository = TransactionRepositoryImpl(_supabaseDataSource);
-  static final domain_jar.JarRepository _jarRepository = JarRepositoryImpl(_supabaseDataSource);
   static final domain_wallet.WalletRepository _walletRepository = WalletRepositoryImpl(_supabaseDataSource);
+  static final domain_jar.JarRepository _jarRepository = JarRepositoryImpl(_supabaseDataSource);
+  static final domain_transaction.TransactionRepository _transactionRepository = TransactionRepositoryImpl(_supabaseDataSource, _walletRepository, _jarRepository);
   static final domain_preference.PreferenceRepository _preferenceRepository = PreferenceRepositoryImpl();
   static final domain_user.UserRepository _userRepository = UserRepositoryImpl(_supabaseDataSource);
   static final domain_notification.NotificationRepository _notificationRepository = NotificationRepositoryImpl();

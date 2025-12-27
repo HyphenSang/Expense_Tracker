@@ -6,6 +6,7 @@ import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/domain/features/category.dart';
 import 'package:expenses/domain/features/wallet.dart';
 import 'package:expenses/domain/features/transaction.dart';
+import 'package:expenses/domain/entities/wallet.dart';
 import 'package:expenses/presentation/screens/create_category.dart';
 import 'package:expenses/service/notification_realtime.dart';
 
@@ -23,6 +24,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   bool _isExpense = true;
   String? _selectedCategory;
+  String? _selectedWalletId;
+  String? _selectedWalletName;
   DateTime _selectedDate = DateTime.now();
   bool _isSubmitting = false;
 
@@ -83,6 +86,38 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
+  Future<void> _pickWallet() async {
+    final user = _getCurrentUser();
+    if (user == null) return;
+
+    final wallets = await DI.walletRepository.getWallets(user.id);
+    if (wallets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chưa có ví nào. Vui lòng tạo ví trước.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final result = await showModalBottomSheet<Map<String, String>>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+      ),
+      builder: (_) => _WalletPickerSheet(wallets: wallets),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedWalletId = result['id'];
+        _selectedWalletName = result['name'];
+      });
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _selectedCategory == null) return;
 
@@ -106,27 +141,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         type: _isExpense ? 'EXPENSE' : 'INCOME',
       );
 
-      // Lấy hoặc tạo wallet
-      final getOrCreateDefaultWallet = GetOrCreateDefaultWallet(DI.walletRepository, user.id);
-      final wallet = await getOrCreateDefaultWallet();
+      // Lấy wallet đã chọn hoặc wallet mặc định
+      String walletId;
+      if (_selectedWalletId != null) {
+        walletId = _selectedWalletId!;
+      } else {
+        final getOrCreateDefaultWallet = GetOrCreateDefaultWallet(DI.walletRepository, user.id);
+        final wallet = await getOrCreateDefaultWallet();
+        walletId = wallet.id;
+      }
 
-      // Đọc số dư hiện tại và cập nhật
-      final currentBalance = wallet.balance;
-      final newBalance = _isExpense 
-          ? currentBalance - amount  // Chi tiêu: trừ đi
-          : currentBalance + amount; // Thu nhập: cộng vào
-      
-      // Cập nhật balance của wallet
-      await DI.walletRepository.updateWalletBalance(
-        walletId: wallet.id,
-        balance: newBalance,
-      );
-
-      // Tạo transaction
+      // Tạo transaction (repository sẽ tự động cập nhật balance)
       final createTransaction = CreateTransaction(DI.transactionRepository);
       await createTransaction(
         userId: user.id,
-        walletId: wallet.id,
+        walletId: walletId,
         categoryId: category.id,
         type: _isExpense ? 'EXPENSE' : 'INCOME',
         amount: amount,
@@ -310,6 +339,46 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     label: const Text(
                       'Tạo danh mục mới',
                       style: TextStyle(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Ví*',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.gray700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                GestureDetector(
+                  onTap: _pickWallet,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.lg,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: AppRadius.radiusLG,
+                      border: Border.all(color: AppColors.gray300),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_balance_wallet_outlined, color: AppColors.gray700),
+                        const SizedBox(width: AppSpacing.lg),
+                        Expanded(
+                          child: Text(
+                            _selectedWalletName ?? 'Chọn ví',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: _selectedWalletName == null
+                                  ? AppColors.gray400
+                                  : AppColors.gray900,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: AppColors.gray400),
+                      ],
                     ),
                   ),
                 ),
@@ -1095,5 +1164,192 @@ class _CategoryItem {
     required this.color,
     this.type = 'EXPENSE', // Mặc định là EXPENSE
   });
+}
+
+class _WalletPickerSheet extends StatelessWidget {
+  final List<WalletEntity> wallets;
+
+  const _WalletPickerSheet({required this.wallets});
+
+  String _formatCurrency(num amount) {
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(1)}M ₫';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(0)}K ₫';
+    }
+    return '${amount.toStringAsFixed(0)} ₫';
+  }
+
+  IconData _getWalletIcon(String type) {
+    switch (type) {
+      case 'BANK':
+        return Icons.account_balance;
+      case 'CARD':
+        return Icons.credit_card;
+      case 'EWALLET':
+        return Icons.account_balance_wallet;
+      default:
+        return Icons.wallet;
+    }
+  }
+
+  Color _getWalletColor(int index) {
+    final colors = [
+      AppColors.primary,
+      AppColors.info,
+      AppColors.success,
+      AppColors.warning,
+      AppColors.secondary,
+      AppColors.error,
+      AppColors.accent,
+    ];
+    return colors[index % colors.length];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.lg),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.xl,
+                right: AppSpacing.xl,
+                top: AppSpacing.lg,
+                bottom: AppSpacing.md,
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    'Chọn ví',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.gray900,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: AppColors.gray700),
+                    onPressed: () => Navigator.of(context).pop(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
+            // Wallet list
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                itemCount: wallets.length,
+                itemBuilder: (context, index) {
+                  final wallet = wallets[index];
+                  final walletColor = _getWalletColor(index);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.of(context).pop({
+                          'id': wallet.id,
+                          'name': wallet.name,
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      child: Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          border: Border.all(
+                            color: AppColors.gray200,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // Icon với background màu
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: walletColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
+                                border: Border.all(
+                                  color: walletColor.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Icon(
+                                _getWalletIcon(wallet.type),
+                                color: walletColor,
+                                size: 28,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            // Thông tin ví
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    wallet.name,
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.gray900,
+                                    ),
+                                  ),
+                                  if (wallet.bankName != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      wallet.bankName!,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: AppColors.gray500,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            // Số dư
+                            Text(
+                              _formatCurrency(wallet.balance),
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.gray900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+          ],
+        ),
+      ),
+    );
+  }
 }
 

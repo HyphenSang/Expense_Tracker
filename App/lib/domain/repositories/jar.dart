@@ -19,5 +19,8 @@ abstract class JarRepository {
     required String jarId,
     required double balance,
   });
+
+  /// Chia lại các hũ theo % dựa trên total balance của wallets
+  Future<void> redistributeJarsByTotalBalance(String userId);
 }
 

@@ -16,6 +16,12 @@ class WalletRepositoryImpl implements domain.WalletRepository {
   }
 
   @override
+  Future<List<WalletEntity>> getAllWallets(String userId) async {
+    final data = await _dataSource.getAllWallets(userId);
+    return data.map((json) => WalletModel.fromJson(json).toEntity()).toList();
+  }
+
+  @override
   Future<WalletEntity?> getWalletById(String walletId) async {
     // TODO: Implement getWalletById trong SupabaseDataSource
     // Tạm thời trả về null, cần thêm method trong datasource
@@ -49,6 +55,18 @@ class WalletRepositoryImpl implements domain.WalletRepository {
     required num balance,
   }) async {
     await _dataSource.updateWallet(walletId, {'balance': balance});
+  }
+
+  @override
+  Future<void> updateWallet({
+    required String walletId,
+    bool? isActive,
+  }) async {
+    final Map<String, dynamic> data = {};
+    if (isActive != null) {
+      data['is_active'] = isActive;
+    }
+    await _dataSource.updateWallet(walletId, data);
   }
 
   @override

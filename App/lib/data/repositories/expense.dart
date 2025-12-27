@@ -648,6 +648,22 @@ class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
     return list;
   }
 
+  /// Lấy tất cả ví (bao gồm cả không hoạt động) để quản lý
+  Future<List<Map<String, dynamic>>> getAllWalletsForManagement() async {
+    final user = _currentUser;
+    if (user == null) {
+      throw StateError('Chưa đăng nhập – không thể tải ví.');
+    }
+
+    final res = await _client
+        .from('wallets')
+        .select('id, name, type, balance, bank_name, is_active')
+        .eq('user_id', user.id)
+        .order('created_at', ascending: true);
+
+    return List<Map<String, dynamic>>.from(res);
+  }
+
   @override
   Future<List<JarData>> getJars() async {
     final user = _currentUser;

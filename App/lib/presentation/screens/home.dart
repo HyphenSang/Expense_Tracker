@@ -102,6 +102,17 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
+      // Đồng bộ jars với total balance trước khi load
+      final user = _getCurrentUser();
+      if (user != null) {
+        try {
+          await DI.jarRepository.redistributeJarsByTotalBalance(user.id);
+        } catch (e) {
+          print('Lỗi khi đồng bộ jars: $e');
+          // Không throw để không làm gián đoạn việc load dữ liệu
+        }
+      }
+
       // Chạy tất cả API calls song song để tăng tốc độ load
       final results = await Future.wait([
         _getSummary(),
@@ -291,6 +302,8 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // Nếu thêm giao dịch thành công, refresh dữ liệu
     if (result == true && mounted) {
+      // Đợi một chút để đảm bảo database đã cập nhật
+      await Future.delayed(const Duration(milliseconds: 300));
       _loadDashboardData();
     }
   }

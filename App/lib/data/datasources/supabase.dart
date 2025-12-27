@@ -44,6 +44,15 @@ class SupabaseDataSource {
     return Map<String, dynamic>.from(result);
   }
 
+  Future<Map<String, dynamic>?> getTransactionById(String transactionId) async {
+    final result = await _client
+        .from('transactions')
+        .select('*')
+        .eq('id', transactionId)
+        .maybeSingle();
+    return result != null ? Map<String, dynamic>.from(result) : null;
+  }
+
   Future<void> deleteTransaction(String transactionId) async {
     await _client.from('transactions').delete().eq('id', transactionId);
   }
@@ -55,6 +64,15 @@ class SupabaseDataSource {
         .select('*')
         .eq('user_id', userId)
         .eq('is_active', true);
+    return List<Map<String, dynamic>>.from(result);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllWallets(String userId) async {
+    final result = await _client
+        .from('wallets')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(result);
   }
 
@@ -111,6 +129,15 @@ class SupabaseDataSource {
         .select('*')
         .eq('user_id', userId)
         .eq('is_active', true)
+        .order('created_at', ascending: true);
+    return List<Map<String, dynamic>>.from(result);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllJars(String userId) async {
+    final result = await _client
+        .from('jars')
+        .select('*')
+        .eq('user_id', userId)
         .order('created_at', ascending: true);
     return List<Map<String, dynamic>>.from(result);
   }
