@@ -348,14 +348,6 @@ class _CategorySpendingCard extends StatelessWidget {
     }
 
     final theme = Theme.of(context);
-    final colors = <Color>[
-      AppColors.error,   // Nhu cầu thiết yếu
-      AppColors.info,    // Tiết kiệm dài hạn
-      AppColors.warning, // Giáo dục
-      AppColors.primary, // Hưởng thụ
-      AppColors.success, // Tự do tài chính
-      AppColors.error,   // Cho đi
-    ];
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -384,11 +376,28 @@ class _CategorySpendingCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        categories[i].name,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.gray800,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(AppSpacing.xs),
+                            decoration: BoxDecoration(
+                              color: categories[i].color.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                            ),
+                            child: Icon(
+                              categories[i].icon,
+                              size: 18,
+                              color: categories[i].color,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(
+                            categories[i].name,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: AppColors.gray800,
+                            ),
+                          ),
+                        ],
                       ),
                       Text(
                         ExpenseService.formatCurrency(categories[i].amount),
@@ -404,7 +413,7 @@ class _CategorySpendingCard extends StatelessWidget {
                     value:
                         (categories[i].percentage / 100).clamp(0.0, 1.0),
                     backgroundColor: AppColors.gray100,
-                    color: colors[i],
+                    color: categories[i].color, // Dùng màu từ category thay vì hardcoded
                     minHeight: 4,
                   ),
                   const SizedBox(height: 2),

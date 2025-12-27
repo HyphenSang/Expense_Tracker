@@ -240,22 +240,62 @@ class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
         ? DateTime(year + 1, 1, 1)
         : DateTime(year, month + 1, 1);
 
+    // Bước 1: Query categories của user trước để đảm bảo chỉ lấy categories của user hiện tại
+    final userCategoriesRes = await _client
+        .from('categories')
+        .select('id, name, icon, color')
+        .eq('user_id', user.id) // Chỉ lấy categories của user hiện tại
+        .eq('type', 'EXPENSE');
+    
+    // Tạo map category_id -> category info để validate và lấy icon/color
+    final Map<String, Map<String, dynamic>> categoryMap = {};
+    for (final cat in userCategoriesRes) {
+      final catId = cat['id'] as String?;
+      if (catId != null) {
+        categoryMap[catId] = {
+          'name': cat['name'] as String? ?? 'Chưa phân loại',
+          'icon': cat['icon'] as String?,
+          'color': cat['color'] as String?,
+        };
+      }
+    }
+
+    // Bước 2: Query transactions với category_id (không join categories)
     final res = await _client
         .from('transactions')
-        .select('amount, type, occurred_at, categories(name)')
-        .eq('user_id', user.id)
+        .select('amount, type, occurred_at, category_id')
+        .eq('user_id', user.id) // Filter transactions theo user_id
+        .eq('type', 'EXPENSE') // Chỉ lấy chi tiêu
         .gte('occurred_at', start.toIso8601String())
         .lt('occurred_at', end.toIso8601String());
 
     final Map<String, num> byCategory = {};
+    final Map<String, Map<String, dynamic>> categoryInfo = {}; // Lưu icon và color theo tên category
 
     for (final row in res) {
-      final type = row['type'] as String?;
-      if (type != 'EXPENSE') continue;
-
-      final cat = (row['categories'] as Map?)?['name'] as String? ?? 'Chưa phân loại';
+      final categoryId = row['category_id'] as String?;
+      
+      // Chỉ xử lý nếu category_id thuộc về user hiện tại
+      final catData = categoryId != null ? categoryMap[categoryId] : null;
+      if (catData == null) {
+        continue;
+      }
+      
+      final catName = catData['name'] as String? ?? 'Chưa phân loại';
       final amount = (row['amount'] as num?) ?? 0;
-      byCategory[cat] = (byCategory[cat] ?? 0) + amount;
+      
+      // Chỉ thêm vào byCategory nếu amount > 0
+      if (amount > 0) {
+        byCategory[catName] = (byCategory[catName] ?? 0) + amount;
+      }
+      
+      // Lưu icon và color từ database (nếu có)
+      if (!categoryInfo.containsKey(catName)) {
+        categoryInfo[catName] = {
+          'icon': catData['icon'] as String?,
+          'color': catData['color'] as String?,
+        };
+      }
     }
 
     final total = byCategory.values.fold<num>(0, (p, e) => p + e);
@@ -266,17 +306,55 @@ class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
 
     final defaultCategoryMap = _getDefaultCategoryMap();
 
+    // Chỉ xử lý categories đã được validate là của user (đã có trong byCategory sau khi filter)
     final list = byCategory.entries
+        .where((e) => e.value > 0) // Chỉ hiển thị categories có amount > 0
         .map(
           (e) {
-            final catName = e.key.toLowerCase();
-            final defaultInfo = defaultCategoryMap[catName];
+            final catName = e.key;
+            final catNameLower = catName.toLowerCase();
             
-            final icon = defaultInfo?['icon'] as IconData? ?? Icons.category;
-            final color = defaultInfo?['color'] as Color? ?? AppColors.gray500;
+            // Ưu tiên lấy icon/color từ default categories (để đảm bảo icon/color đúng)
+            // Nếu không có trong default, mới lấy từ database
+            IconData icon;
+            Color color;
+            
+            final defaultInfo = defaultCategoryMap[catNameLower];
+            if (defaultInfo != null) {
+              // Có trong default categories - dùng icon/color từ default
+              icon = defaultInfo['icon'] as IconData;
+              color = defaultInfo['color'] as Color;
+            } else {
+              // Không có trong default - thử lấy từ database
+              final dbInfo = categoryInfo[catName];
+              if (dbInfo != null && dbInfo['icon'] != null && dbInfo['color'] != null) {
+                // Lấy từ database
+                final iconStr = dbInfo['icon'] as String?;
+                final colorStr = dbInfo['color'] as String?;
+                
+                // Kiểm tra icon có phải là codePoint hợp lệ không
+                icon = _getIconFromString(iconStr);
+                
+                try {
+                  if (colorStr != null && colorStr.isNotEmpty) {
+                    color = Color(
+                      int.parse(colorStr.replaceAll('#', ''), radix: 16) + 0xFF000000,
+                    );
+                  } else {
+                    color = AppColors.gray500;
+                  }
+                } catch (_) {
+                  color = AppColors.gray500;
+                }
+              } else {
+                // Fallback cuối cùng
+                icon = Icons.category;
+                color = AppColors.gray500;
+              }
+            }
             
             return domain_expense.CategorySpendingSummary(
-              name: e.key,
+              name: catName,
               amount: e.value,
               percentage: (e.value * 100.0) / total,
               icon: icon,
@@ -305,22 +383,63 @@ class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
         ? DateTime(year + 1, 1, 1)
         : DateTime(year, month + 1, 1);
 
+    // Bước 1: Query categories của user trước để đảm bảo chỉ lấy categories của user hiện tại
+    final userCategoriesRes = await _client
+        .from('categories')
+        .select('id, name, icon, color')
+        .eq('user_id', user.id) // Chỉ lấy categories của user hiện tại
+        .eq('type', 'INCOME');
+    
+    // Tạo map category_id -> category info để validate và lấy icon/color
+    final Map<String, Map<String, dynamic>> categoryMap = {};
+    for (final cat in userCategoriesRes) {
+      final catId = cat['id'] as String?;
+      if (catId != null) {
+        categoryMap[catId] = {
+          'name': cat['name'] as String? ?? 'Chưa phân loại',
+          'icon': cat['icon'] as String?,
+          'color': cat['color'] as String?,
+        };
+      }
+    }
+
+    // Bước 2: Query transactions với category_id (không join categories)
     final res = await _client
         .from('transactions')
-        .select('amount, type, occurred_at, categories(name)')
-        .eq('user_id', user.id)
+        .select('amount, type, occurred_at, category_id')
+        .eq('user_id', user.id) // Filter transactions theo user_id
+        .eq('type', 'INCOME') // Chỉ lấy thu nhập
         .gte('occurred_at', start.toIso8601String())
         .lt('occurred_at', end.toIso8601String());
 
     final Map<String, num> byCategory = {};
+    final Map<String, Map<String, dynamic>> categoryInfo = {}; // Lưu icon và color theo tên category
 
     for (final row in res) {
-      final type = row['type'] as String?;
-      if (type != 'INCOME') continue;
-
-      final cat = (row['categories'] as Map?)?['name'] as String? ?? 'Chưa phân loại';
+      final categoryId = row['category_id'] as String?;
+      
+      // Chỉ xử lý nếu category_id thuộc về user hiện tại
+      final catData = categoryId != null ? categoryMap[categoryId] : null;
+      if (catData == null) {
+        // Category không thuộc về user này - bỏ qua
+        continue;
+      }
+      
+      final catName = catData['name'] as String? ?? 'Chưa phân loại';
       final amount = (row['amount'] as num?) ?? 0;
-      byCategory[cat] = (byCategory[cat] ?? 0) + amount;
+      
+      // Chỉ thêm vào byCategory nếu amount > 0
+      if (amount > 0) {
+        byCategory[catName] = (byCategory[catName] ?? 0) + amount;
+      }
+      
+      // Lưu icon và color từ database (nếu có)
+      if (!categoryInfo.containsKey(catName)) {
+        categoryInfo[catName] = {
+          'icon': catData['icon'] as String?,
+          'color': catData['color'] as String?,
+        };
+      }
     }
 
     final total = byCategory.values.fold<num>(0, (p, e) => p + e);
@@ -331,17 +450,55 @@ class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
 
     final defaultCategoryMap = _getDefaultIncomeCategoryMap();
 
+    // Chỉ xử lý categories đã được validate là của user (đã có trong byCategory sau khi filter)
     final list = byCategory.entries
+        .where((e) => e.value > 0) // Chỉ hiển thị categories có amount > 0
         .map(
           (e) {
-            final catName = e.key.toLowerCase();
-            final defaultInfo = defaultCategoryMap[catName];
+            final catName = e.key;
+            final catNameLower = catName.toLowerCase();
             
-            final icon = defaultInfo?['icon'] as IconData? ?? Icons.category;
-            final color = defaultInfo?['color'] as Color? ?? AppColors.success;
+            // Ưu tiên lấy icon/color từ default categories (để đảm bảo icon/color đúng)
+            // Nếu không có trong default, mới lấy từ database
+            IconData icon;
+            Color color;
+            
+            final defaultInfo = defaultCategoryMap[catNameLower];
+            if (defaultInfo != null) {
+              // Có trong default categories - dùng icon/color từ default
+              icon = defaultInfo['icon'] as IconData;
+              color = defaultInfo['color'] as Color;
+            } else {
+              // Không có trong default - thử lấy từ database
+              final dbInfo = categoryInfo[catName];
+              if (dbInfo != null && dbInfo['icon'] != null && dbInfo['color'] != null) {
+                // Lấy từ database
+                final iconStr = dbInfo['icon'] as String?;
+                final colorStr = dbInfo['color'] as String?;
+                
+                // Kiểm tra icon có phải là codePoint hợp lệ không
+                icon = _getIconFromString(iconStr);
+                
+                try {
+                  if (colorStr != null && colorStr.isNotEmpty) {
+                    color = Color(
+                      int.parse(colorStr.replaceAll('#', ''), radix: 16) + 0xFF000000,
+                    );
+                  } else {
+                    color = AppColors.success;
+                  }
+                } catch (_) {
+                  color = AppColors.success;
+                }
+              } else {
+                // Fallback cuối cùng
+                icon = Icons.category;
+                color = AppColors.success;
+              }
+            }
             
             return domain_expense.CategorySpendingSummary(
-              name: e.key,
+              name: catName,
               amount: e.value,
               percentage: (e.value * 100.0) / total,
               icon: icon,
@@ -781,6 +938,14 @@ class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
         'icon': Icons.people_outline,
         'color': const Color(0xFFF48FB1),
       },
+      'học tập': {
+        'icon': Icons.school_outlined,
+        'color': const Color(0xFF8B5CF6),
+      },
+      'đầu tư': {
+        'icon': Icons.trending_up_outlined,
+        'color': const Color(0xFF10B981),
+      },
     };
   }
 
@@ -803,6 +968,36 @@ class ExpenseRepositoryImpl implements domain_expense.ExpenseRepository {
         'color': AppColors.gray500,
       },
     };
+  }
+
+  /// Parse icon string từ database thành IconData
+  IconData _getIconFromString(String? iconName) {
+    if (iconName == null || iconName.isEmpty) {
+      return Icons.category;
+    }
+    
+    // Parse format: "codePoint" hoặc "codePoint:fontFamily"
+    try {
+      if (iconName.contains(':')) {
+        final parts = iconName.split(':');
+        final codePoint = int.parse(parts[0]);
+        final fontFamily = parts[1];
+        return IconData(
+          codePoint,
+          fontFamily: fontFamily,
+        );
+      } else {
+        // Chỉ có codePoint, dùng MaterialIcons mặc định
+        final codePoint = int.parse(iconName);
+        return IconData(
+          codePoint,
+          fontFamily: 'MaterialIcons',
+        );
+      }
+    } catch (e) {
+      // Nếu parse lỗi, trả về icon mặc định
+      return Icons.category;
+    }
   }
 }
 
