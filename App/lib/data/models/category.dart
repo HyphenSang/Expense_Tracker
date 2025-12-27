@@ -10,6 +10,7 @@ class CategoryModel extends CategoryEntity {
     super.icon,
     super.color,
     super.isSystem,
+    super.categoryGroup,
   });
 
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
@@ -21,6 +22,7 @@ class CategoryModel extends CategoryEntity {
       icon: json['icon'] as String?,
       color: json['color'] as String?,
       isSystem: (json['is_system'] as bool?) ?? false,
+      categoryGroup: json['category_group'] as String?,
     );
   }
 
@@ -33,6 +35,7 @@ class CategoryModel extends CategoryEntity {
       'icon': icon,
       'color': color,
       'is_system': isSystem,
+      'category_group': categoryGroup,
     };
   }
 

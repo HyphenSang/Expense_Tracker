@@ -39,6 +39,7 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
     required String type,
     String? icon,
     String? color,
+    String? categoryGroup,
   }) async {
     final category = await _dataSource.createCategory(
       userId: userId,
@@ -46,6 +47,7 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
       type: type,
       icon: icon,
       color: color,
+      categoryGroup: categoryGroup,
     );
     return CategoryModel.fromJson(category);
   }

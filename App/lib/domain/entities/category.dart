@@ -7,6 +7,7 @@ class CategoryEntity {
   final String? icon;
   final String? color;
   final bool isSystem;
+  final String? categoryGroup; // 'living', 'incidental', 'fixed', 'investment'
 
   const CategoryEntity({
     required this.id,
@@ -16,6 +17,7 @@ class CategoryEntity {
     this.icon,
     this.color,
     this.isSystem = false,
+    this.categoryGroup,
   });
 }
 

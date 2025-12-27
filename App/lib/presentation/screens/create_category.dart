@@ -26,6 +26,7 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
   IconData _selectedIcon = Icons.category;
   Color _selectedColor = AppColors.gray500;
   final int _maxNameLength = 30;
+  String? _selectedGroup; // 'living', 'incidental', 'fixed', 'investment'
 
   // Use cases
   final _getCurrentUser = GetCurrentUser(DI.authRepository);
@@ -77,8 +78,15 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
     try {
       // Convert IconData to string (tên icon)
       final iconName = _iconDataToString(_selectedIcon);
-      // Convert Color to hex string
-      final colorHex = '#${_selectedColor.value.toRadixString(16).substring(2).toUpperCase()}';
+      // Convert Color to hex string (đảm bảo format đúng với 6 ký tự)
+      final colorValue = _selectedColor.value & 0xFFFFFF; // Bỏ alpha channel
+      final colorHex = '#${colorValue.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+
+      // Debug: Kiểm tra giá trị icon trước khi lưu
+      // print('Icon codePoint: ${_selectedIcon.codePoint}');
+      // print('Icon fontFamily: ${_selectedIcon.fontFamily}');
+      // print('Icon string: $iconName');
+      // print('Color hex: $colorHex');
 
       final user = _getCurrentUser();
       if (user == null) {
@@ -89,8 +97,9 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
       await createCategory(
         name: name,
         type: _isExpense ? 'EXPENSE' : 'INCOME',
-        icon: iconName,
+        icon: iconName.isNotEmpty ? iconName : null, // Đảm bảo không truyền empty string
         color: colorHex,
+        categoryGroup: _selectedGroup,
       );
 
       if (!mounted) return;
@@ -123,8 +132,12 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
   }
 
   String _iconDataToString(IconData icon) {
-    // Map IconData to string name (đơn giản hóa)
-    return icon.codePoint.toString();
+    // Map IconData to string: lưu codePoint và fontFamily
+    // Format: "codePoint:fontFamily" hoặc chỉ "codePoint" nếu fontFamily là mặc định
+    if (icon.fontFamily == null || icon.fontFamily == 'MaterialIcons') {
+      return icon.codePoint.toString();
+    }
+    return '${icon.codePoint}:${icon.fontFamily}';
   }
 
   @override
@@ -236,57 +249,62 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
                 const SizedBox(height: AppSpacing.xl),
                 
                 // Thuộc danh mục (Parent category) - tùy chọn
-                Text(
-                  'Thuộc danh mục (tùy chọn)',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.gray700,
-                    fontWeight: FontWeight.w500,
+                // Chỉ hiển thị cho EXPENSE
+                if (_isExpense) ...[
+                  Text(
+                    'Thuộc danh mục (tùy chọn)',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.gray700,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                DropdownButtonFormField<String>(
-                  value: null,
-                  decoration: InputDecoration(
-                    hintText: 'Chọn',
-                    filled: true,
-                    fillColor: AppColors.gray100.withValues(alpha: 0.5), // Khung mờ
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      borderSide: BorderSide(color: AppColors.gray300),
+                  const SizedBox(height: AppSpacing.sm),
+                  DropdownButtonFormField<String>(
+                    value: _selectedGroup,
+                    decoration: InputDecoration(
+                      hintText: 'Chọn',
+                      filled: true,
+                      fillColor: AppColors.gray100.withValues(alpha: 0.5), // Khung mờ
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        borderSide: BorderSide(color: AppColors.gray300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        borderSide: BorderSide(color: AppColors.gray300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        borderSide: BorderSide(color: AppColors.primary),
+                      ),
+                      suffixIcon: const Icon(Icons.chevron_right),
                     ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      borderSide: BorderSide(color: AppColors.gray300),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                      borderSide: BorderSide(color: AppColors.primary),
-                    ),
-                    suffixIcon: const Icon(Icons.chevron_right),
+                    dropdownColor: Colors.white,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'living',
+                        child: Text('Chi tiêu - sinh hoạt'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'incidental',
+                        child: Text('Chi phí phát sinh'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'fixed',
+                        child: Text('Chi phí cố định'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'investment',
+                        child: Text('Đầu tư - tiết kiệm'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedGroup = value;
+                      });
+                    },
                   ),
-                  dropdownColor: Colors.white,
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'living',
-                      child: Text('Chi tiêu - sinh hoạt'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'incidental',
-                      child: Text('Chi phí phát sinh'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'fixed',
-                      child: Text('Chi phí cố định'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'investment',
-                      child: Text('Đầu tư - tiết kiệm'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    // TODO: Lưu parent category khi có database field
-                  },
-                ),
+                ],
                 const SizedBox(height: AppSpacing.xl * 2),
                 
                 // Nút xác nhận

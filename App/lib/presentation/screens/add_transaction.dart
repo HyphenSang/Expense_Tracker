@@ -590,11 +590,15 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
             color = AppColors.gray500;
           }
 
+          // Debug: In ra categoryGroup để kiểm tra
+          // print('Category: ${cat.name}, categoryGroup: ${cat.categoryGroup}');
+          
           return _CategoryItem(
             name: cat.name,
             icon: _getIconFromString(cat.icon),
             color: color,
             type: cat.type, // Lưu type để phân loại
+            categoryGroup: cat.categoryGroup, // Lưu category group
           );
         }).toList();
         _isLoadingCategories = false;
@@ -608,8 +612,32 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
 
   IconData _getIconFromString(String? iconName) {
     // Map icon name string to IconData
-    // Có thể mở rộng sau
-    return Icons.category;
+    if (iconName == null || iconName.isEmpty) {
+      return Icons.category;
+    }
+    
+    // Parse format: "codePoint" hoặc "codePoint:fontFamily"
+    try {
+      if (iconName.contains(':')) {
+        final parts = iconName.split(':');
+        final codePoint = int.parse(parts[0]);
+        final fontFamily = parts[1];
+        return IconData(
+          codePoint,
+          fontFamily: fontFamily,
+        );
+      } else {
+        // Chỉ có codePoint, dùng MaterialIcons mặc định
+        final codePoint = int.parse(iconName);
+        return IconData(
+          codePoint,
+          fontFamily: 'MaterialIcons',
+        );
+      }
+    } catch (e) {
+      // Nếu parse lỗi, trả về icon mặc định
+      return Icons.category;
+    }
   }
 
   List<_CategoryItem> _filterCategories(List<_CategoryItem> categories) {
@@ -920,6 +948,9 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                             icon: Icons.receipt_long,
                             color: AppColors.warning,
                             items: filteredExpense.where((cat) {
+                              // Ưu tiên dùng categoryGroup từ database
+                              if (cat.categoryGroup == 'living') return true;
+                              // Fallback: dựa vào tên (backward compatibility)
                               final name = cat.name.toLowerCase();
                               return name.contains('chợ') ||
                                   name.contains('siêu thị') ||
@@ -934,6 +965,9 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                             icon: Icons.account_balance,
                             color: const Color(0xFFFFD54F), // Vàng nhạt hơn, bớt chói
                             items: filteredExpense.where((cat) {
+                              // Ưu tiên dùng categoryGroup từ database
+                              if (cat.categoryGroup == 'incidental') return true;
+                              // Fallback: dựa vào tên (backward compatibility)
                               final name = cat.name.toLowerCase();
                               return name.contains('mua sắm') ||
                                   name.contains('giải trí') ||
@@ -949,6 +983,9 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                             icon: Icons.account_balance,
                             color: AppColors.info,
                             items: filteredExpense.where((cat) {
+                              // Ưu tiên dùng categoryGroup từ database
+                              if (cat.categoryGroup == 'fixed') return true;
+                              // Fallback: dựa vào tên (backward compatibility)
                               final name = cat.name.toLowerCase();
                               return name.contains('hóa đơn') ||
                                   name.contains('nhà cửa') ||
@@ -962,6 +999,9 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                             icon: Icons.account_balance_wallet,
                             color: AppColors.success,
                             items: filteredExpense.where((cat) {
+                              // Ưu tiên dùng categoryGroup từ database
+                              if (cat.categoryGroup == 'investment') return true;
+                              // Fallback: dựa vào tên (backward compatibility)
                               final name = cat.name.toLowerCase();
                               return name.contains('đầu tư') ||
                                   name.contains('học tập');
@@ -970,42 +1010,41 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                           const SizedBox(height: AppSpacing.lg),
                           // Các category khác
                           if (filteredExpense.any((cat) {
-                            final name = cat.name.toLowerCase();
-                            return !name.contains('chợ') &&
-                                !name.contains('siêu thị') &&
-                                !name.contains('ăn uống') &&
-                                !name.contains('di chuyển') &&
-                                !name.contains('mua sắm') &&
-                                !name.contains('giải trí') &&
-                                !name.contains('làm đẹp') &&
-                                !name.contains('sức khỏe') &&
-                                !name.contains('từ thiện') &&
-                                !name.contains('hóa đơn') &&
-                                !name.contains('nhà cửa') &&
-                                !name.contains('người thân') &&
-                                !name.contains('đầu tư') &&
-                                !name.contains('học tập');
+                            // Không có categoryGroup hoặc không khớp với các nhóm trên
+                            return cat.categoryGroup == null || 
+                                (cat.categoryGroup != 'living' &&
+                                 cat.categoryGroup != 'incidental' &&
+                                 cat.categoryGroup != 'fixed' &&
+                                 cat.categoryGroup != 'investment');
                           }))
                             _CategoryGroup(
                               title: 'Khác',
                               icon: Icons.category,
                               color: AppColors.gray500,
                               items: filteredExpense.where((cat) {
-                                final name = cat.name.toLowerCase();
-                                return !name.contains('chợ') &&
-                                    !name.contains('siêu thị') &&
-                                    !name.contains('ăn uống') &&
-                                    !name.contains('di chuyển') &&
-                                    !name.contains('mua sắm') &&
-                                    !name.contains('giải trí') &&
-                                    !name.contains('làm đẹp') &&
-                                    !name.contains('sức khỏe') &&
-                                    !name.contains('từ thiện') &&
-                                    !name.contains('hóa đơn') &&
-                                    !name.contains('nhà cửa') &&
-                                    !name.contains('người thân') &&
-                                    !name.contains('đầu tư') &&
-                                    !name.contains('học tập');
+                                // Không có categoryGroup hoặc không khớp với các nhóm trên
+                                if (cat.categoryGroup == null) {
+                                  // Fallback: kiểm tra tên
+                                  final name = cat.name.toLowerCase();
+                                  return !name.contains('chợ') &&
+                                      !name.contains('siêu thị') &&
+                                      !name.contains('ăn uống') &&
+                                      !name.contains('di chuyển') &&
+                                      !name.contains('mua sắm') &&
+                                      !name.contains('giải trí') &&
+                                      !name.contains('làm đẹp') &&
+                                      !name.contains('sức khỏe') &&
+                                      !name.contains('từ thiện') &&
+                                      !name.contains('hóa đơn') &&
+                                      !name.contains('nhà cửa') &&
+                                      !name.contains('người thân') &&
+                                      !name.contains('đầu tư') &&
+                                      !name.contains('học tập');
+                                }
+                                return cat.categoryGroup != 'living' &&
+                                    cat.categoryGroup != 'incidental' &&
+                                    cat.categoryGroup != 'fixed' &&
+                                    cat.categoryGroup != 'investment';
                               }).toList(),
                             ),
                         ] else ...[
@@ -1140,12 +1179,14 @@ class _CategoryItem {
   final IconData icon;
   final Color color;
   final String type; // 'EXPENSE' hoặc 'INCOME'
+  final String? categoryGroup; // 'living', 'incidental', 'fixed', 'investment'
 
   const _CategoryItem({
     required this.name,
     required this.icon,
     required this.color,
     this.type = 'EXPENSE', // Mặc định là EXPENSE
+    this.categoryGroup,
   });
 }
 

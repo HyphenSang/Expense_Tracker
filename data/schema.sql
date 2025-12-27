@@ -46,10 +46,13 @@ CREATE TABLE public.categories (
   icon text,
   color text,
   is_system boolean NOT NULL DEFAULT false,
+  jar_id uuid DEFAULT NULL,
+  category_group text,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT categories_pkey PRIMARY KEY (id),
-  CONSTRAINT categories_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+  CONSTRAINT categories_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT categories_jar_id_fkey FOREIGN KEY (jar_id) REFERENCES public.jars(id) ON DELETE SET NULL
 );
 CREATE TABLE public.jar_allocations (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

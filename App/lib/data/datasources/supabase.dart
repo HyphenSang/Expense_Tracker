@@ -189,6 +189,7 @@ class SupabaseDataSource {
     required String type,
     String? icon,
     String? color,
+    String? categoryGroup,
   }) async {
     // Kiểm tra danh mục đã tồn tại chưa
     final existing = await findCategory(
@@ -201,14 +202,19 @@ class SupabaseDataSource {
       throw StateError('Danh mục "$name" đã tồn tại cho loại ${type == 'EXPENSE' ? 'chi tiêu' : 'thu nhập'}.');
     }
 
+    // Đảm bảo icon không phải empty string
+    final iconValue = (icon != null && icon.isNotEmpty) ? icon : null;
+    
     final result = await _client
         .from('categories')
         .insert({
           'user_id': userId,
           'name': name,
           'type': type,
-          'icon': icon ?? 'category',
+          'icon': iconValue, // Lưu icon hoặc NULL (không dùng default 'category')
           'color': color ?? '#6B7280',
+          'category_group': categoryGroup,
+          'jar_id': null, // Đảm bảo jar_id là NULL thay vì để database tự tạo UUID
           'is_system': false,
         })
         .select()

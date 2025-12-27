@@ -22,6 +22,7 @@ abstract class CategoryRepository {
     required String type,
     String? icon,
     String? color,
+    String? categoryGroup,
   });
 
   /// Xóa category

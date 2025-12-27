@@ -28,6 +28,7 @@ class CreateCategory {
     required String type,
     String? icon,
     String? color,
+    String? categoryGroup,
   }) async {
     return await _repository.createCategory(
       userId: _userId,
@@ -35,6 +36,7 @@ class CreateCategory {
       type: type,
       icon: icon,
       color: color,
+      categoryGroup: categoryGroup,
     );
   }
 }

@@ -757,6 +757,7 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
               icon: _getIconFromString(cat.icon),
               color: color,
               type: cat.type,
+              categoryGroup: cat.categoryGroup,
             );
           })
           .toList();
@@ -889,54 +890,74 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
   }
 
   IconData _getIconFromString(String? iconName) {
-    // Map icon name string to IconData - giống như trong add_transaction
+    // Map icon name string to IconData - parse từ codePoint
     if (iconName == null || iconName.isEmpty) {
       return Icons.category;
     }
     
-    // Map các icon phổ biến
-    switch (iconName.toLowerCase()) {
-      case 'shopping_bag':
-      case 'shopping_bag_outlined':
-        return Icons.shopping_bag_outlined;
-      case 'restaurant':
-      case 'restaurant_outlined':
-        return Icons.restaurant_outlined;
-      case 'directions_car':
-      case 'directions_car_outlined':
-        return Icons.directions_car_outlined;
-      case 'shopping_cart':
-      case 'shopping_cart_outlined':
-        return Icons.shopping_cart_outlined;
-      case 'card_giftcard':
-      case 'card_giftcard_outlined':
-        return Icons.card_giftcard_outlined;
-      case 'brush':
-      case 'brush_outlined':
-        return Icons.brush_outlined;
-      case 'favorite':
-      case 'favorite_outlined':
-        return Icons.favorite_outlined;
-      case 'volunteer_activism':
-      case 'volunteer_activism_outlined':
-        return Icons.volunteer_activism_outlined;
-      case 'receipt_long':
-      case 'receipt_long_outlined':
-        return Icons.receipt_long_outlined;
-      case 'home':
-      case 'home_outlined':
-        return Icons.home_outlined;
-      case 'people':
-      case 'people_outline':
-        return Icons.people_outline;
-      case 'account_balance_wallet':
-      case 'account_balance_wallet_outlined':
-        return Icons.account_balance_wallet_outlined;
-      case 'school':
-      case 'school_outlined':
-        return Icons.school_outlined;
-      default:
-        return Icons.category;
+    // Parse format: "codePoint" hoặc "codePoint:fontFamily"
+    try {
+      if (iconName.contains(':')) {
+        final parts = iconName.split(':');
+        final codePoint = int.parse(parts[0]);
+        final fontFamily = parts[1];
+        return IconData(
+          codePoint,
+          fontFamily: fontFamily,
+        );
+      } else {
+        // Chỉ có codePoint, dùng MaterialIcons mặc định
+        final codePoint = int.parse(iconName);
+        return IconData(
+          codePoint,
+          fontFamily: 'MaterialIcons',
+        );
+      }
+    } catch (e) {
+      // Nếu parse lỗi, thử map theo tên (backward compatibility)
+      switch (iconName.toLowerCase()) {
+        case 'shopping_bag':
+        case 'shopping_bag_outlined':
+          return Icons.shopping_bag_outlined;
+        case 'restaurant':
+        case 'restaurant_outlined':
+          return Icons.restaurant_outlined;
+        case 'directions_car':
+        case 'directions_car_outlined':
+          return Icons.directions_car_outlined;
+        case 'shopping_cart':
+        case 'shopping_cart_outlined':
+          return Icons.shopping_cart_outlined;
+        case 'card_giftcard':
+        case 'card_giftcard_outlined':
+          return Icons.card_giftcard_outlined;
+        case 'brush':
+        case 'brush_outlined':
+          return Icons.brush_outlined;
+        case 'favorite':
+        case 'favorite_outlined':
+          return Icons.favorite_outlined;
+        case 'volunteer_activism':
+        case 'volunteer_activism_outlined':
+          return Icons.volunteer_activism_outlined;
+        case 'receipt_long':
+        case 'receipt_long_outlined':
+          return Icons.receipt_long_outlined;
+        case 'home':
+        case 'home_outlined':
+          return Icons.home_outlined;
+        case 'people':
+        case 'people_outline':
+          return Icons.people_outline;
+        case 'account_balance_wallet':
+        case 'account_balance_wallet_outlined':
+          return Icons.account_balance_wallet_outlined;
+        case 'school':
+        case 'school_outlined':
+          return Icons.school_outlined;
+        default:
+          return Icons.category;
+      }
     }
   }
 
@@ -975,6 +996,9 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
         }).toList();
       case 'Chi phí cố định':
         return all.where((cat) {
+          // Ưu tiên dùng categoryGroup từ database
+          if (cat.categoryGroup == 'fixed') return true;
+          // Fallback: dựa vào tên (backward compatibility)
           final name = cat.name.toLowerCase();
           return name.contains('hóa đơn') ||
               name.contains('nhà cửa') ||
@@ -982,6 +1006,9 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
         }).toList();
       case 'Đầu tư - tiết kiệm':
         return all.where((cat) {
+          // Ưu tiên dùng categoryGroup từ database
+          if (cat.categoryGroup == 'investment') return true;
+          // Fallback: dựa vào tên (backward compatibility)
           final name = cat.name.toLowerCase();
           return name.contains('đầu tư') || name.contains('học tập');
         }).toList();
@@ -1220,6 +1247,7 @@ class _CategoryItem {
   final IconData icon;
   final Color color;
   final String type;
+  final String? categoryGroup; // 'living', 'incidental', 'fixed', 'investment'
 
   _CategoryItem({
     required this.id,
@@ -1227,6 +1255,7 @@ class _CategoryItem {
     required this.icon,
     required this.color,
     this.type = 'EXPENSE',
+    this.categoryGroup,
   });
 }
 
