@@ -173,12 +173,48 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
         throw StateError('Số tiền giới hạn phải lớn hơn 0');
       }
 
-      // TODO: Gọi API tạo budget
-      // final user = _getCurrentUser();
-      // if (user == null) {
-      //   throw StateError('Chưa đăng nhập');
-      // }
-      // await createBudget(...);
+      final user = _getCurrentUser();
+      if (user == null) {
+        throw StateError('Chưa đăng nhập');
+      }
+
+      // Tạo budget trong Supabase
+      final budgetData = {
+        'user_id': user.id,
+        'period': _selectedPeriod,
+        'limit_amount': limit,
+        'spent_amount': 0,
+        'start_date': _startDate.toIso8601String().split('T')[0],
+        'is_active': true,
+      };
+
+      // Thêm category_id hoặc jar_id tùy theo loại budget
+      if (_budgetType == 'category' && _selectedCategoryId != null) {
+        String? finalCategoryId = _selectedCategoryId;
+        
+        // Nếu là default category, cần tạo category trong database trước
+        if (_selectedCategoryId!.startsWith('default_')) {
+          final getOrCreateCategory = GetOrCreateCategory(DI.categoryRepository, user.id);
+          final category = await getOrCreateCategory(
+            categoryName: _selectedCategoryName!,
+            type: 'EXPENSE',
+          );
+          finalCategoryId = category.id;
+        }
+        
+        budgetData['category_id'] = finalCategoryId as Object;
+      } else if (_budgetType == 'jar' && _selectedJarId != null) {
+        budgetData['jar_id'] = _selectedJarId as Object;
+      }
+
+      // Thêm end_date nếu có
+      if (_endDate != null) {
+        budgetData['end_date'] = _endDate!.toIso8601String().split('T')[0];
+      }
+
+      await SupabaseConfig.client
+          .from('budgets')
+          .insert(budgetData);
 
       if (!mounted) return;
 
@@ -424,23 +460,6 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.white,
-                    prefixIcon: Padding(
-                      padding: const EdgeInsets.only(left: AppSpacing.lg),
-                      child: Align(
-                        widthFactor: 1.0,
-                        child: Text(
-                          '\$',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.gray900,
-                          ),
-                        ),
-                      ),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 30,
-                      minHeight: 0,
-                    ),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [

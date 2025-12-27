@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/add_budget.dart';
 import 'package:expenses/presentation/screens/budget_detail.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/core/supabase_flutter.dart';
 
 /// Màn hình quản lý ngân sách (Budget).
 ///
@@ -16,126 +19,276 @@ class BudgetsScreen extends StatefulWidget {
 
 class _BudgetsScreenState extends State<BudgetsScreen> {
   int _selectedTab = 0; // 0: Tất cả, 1: Danh mục, 2: Hũ
+  List<Map<String, dynamic>> _allBudgets = [];
+  bool _isLoading = true;
 
-  // Dữ liệu phân tích từ CSV của tài khoản nhiy9130@gmail.com
-  // Dựa trên transactions_rows.csv và categories_rows.csv
-  // Tính toán chi tiêu thực tế trong tháng 12/2025
-  final List<Map<String, dynamic>> _allBudgets = [
-    // Ngân sách theo danh mục - dựa trên chi tiêu thực tế
-    {
-      'id': '1',
-      'name': 'Mua sắm',
-      'type': 'category',
-      'categoryId': '5e3d2c7f-c151-44e3-929f-e8a43cca12f7',
-      'limit': 2000000, // Giới hạn đề xuất
-      'spent': 1830000, // Tổng chi: 30000 + 1500000 + 300000 = 1,830,000
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.shopping_bag_outlined,
-      'color': AppColors.primary,
-    },
-    {
-      'id': '2',
-      'name': 'Di chuyển',
-      'type': 'category',
-      'categoryId': 'f7790789-1ec8-40b5-9459-88017ecbaa7e',
-      'limit': 500000, // Giới hạn đề xuất
-      'spent': 265000, // Tổng chi: 100000 + 50000 + 70000 + 65000 = 265,000
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.directions_car_outlined,
-      'color': AppColors.warning,
-    },
-    {
-      'id': '3',
-      'name': 'Từ thiện',
-      'type': 'category',
-      'categoryId': '2c6ce9f3-6101-422c-8875-3be42499a63f',
-      'limit': 1000000, // Giới hạn đề xuất
-      'spent': 900000, // Tổng chi: 90000 + 50000 + 50000 + 300000 = 490,000 (có thể có thêm)
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.favorite_outline,
-      'color': AppColors.error,
-    },
-    {
-      'id': '4',
-      'name': 'Ăn uống',
-      'type': 'category',
-      'categoryId': '584434fa-048f-47df-bf46-5cb3e1279370',
-      'limit': 300000, // Giới hạn đề xuất
-      'spent': 280000, // Tổng chi: 30000 + 50000 + 200000 = 280,000
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.restaurant_outlined,
-      'color': AppColors.success,
-    },
-    {
-      'id': '5',
-      'name': 'Hóa đơn',
-      'type': 'category',
-      'categoryId': '3b8371ae-0038-4c3c-8c6c-8d3bda22fb2f',
-      'limit': 2000000, // Giới hạn đề xuất
-      'spent': 1000000, // Chi tiêu: 1,000,000
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.receipt_long_outlined,
-      'color': AppColors.info,
-    },
-    {
-      'id': '6',
-      'name': 'Học tập',
-      'type': 'category',
-      'categoryId': '10701131-3011-4efa-b714-3753d66370fd',
-      'limit': 1000000, // Giới hạn đề xuất
-      'spent': 800000, // Chi tiêu: 800,000
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.school_outlined,
-      'color': AppColors.secondary,
-    },
-    // Ngân sách theo hũ - dựa trên jar_allocations_rows.csv
-    {
-      'id': '7',
-      'name': 'Hũ dự phòng',
-      'type': 'jar',
-      'jarId': 'bce7f1c8-f1fd-4d61-8bff-2d5ed707ee9a',
-      'limit': 5000000, // Giới hạn đề xuất
-      'spent': 4500000, // Tổng phân bổ vào hũ này trong tháng 12
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.account_balance_wallet_outlined,
-      'color': AppColors.info,
-    },
-    {
-      'id': '8',
-      'name': 'Hũ tiết kiệm',
-      'type': 'jar',
-      'jarId': '84624fcd-4f8b-43d4-a491-81f7d5e50431',
-      'limit': 3000000, // Giới hạn đề xuất
-      'spent': 2400000, // Tổng phân bổ vào hũ này trong tháng 12
-      'period': 'MONTHLY',
-      'startDate': '2025-12-01',
-      'endDate': '2025-12-31',
-      'isActive': true,
-      'icon': Icons.savings_outlined,
-      'color': AppColors.success,
-    },
-  ];
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBudgets();
+  }
+
+  Future<void> _loadBudgets() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final user = _getCurrentUser();
+      if (user == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Load budgets từ Supabase
+      final budgetsRes = await SupabaseConfig.client
+          .from('budgets')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('created_at', ascending: false);
+
+      // Load categories và jars để lấy thông tin
+      final categoriesRes = await SupabaseConfig.client
+          .from('categories')
+          .select('id, name, icon, color')
+          .eq('user_id', user.id);
+
+      final jarsRes = await SupabaseConfig.client
+          .from('jars')
+          .select('id, name')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('created_at', ascending: true);
+
+      final categories = Map<String, Map<String, dynamic>>.fromEntries(
+        (categoriesRes as List).map((c) => MapEntry(
+          c['id'] as String,
+          {
+            'name': c['name'] as String? ?? '',
+            'icon': c['icon'] as String?,
+            'color': c['color'] as String?,
+          },
+        )),
+      );
+
+      // Màu cho jars (giống như trong add_budget.dart và home screen)
+      final jarColors = <Color>[
+        AppColors.error,
+        AppColors.info,
+        AppColors.warning,
+        AppColors.primary,
+        AppColors.success,
+        AppColors.secondary,
+      ];
+
+      final jars = Map<String, Map<String, dynamic>>.fromEntries(
+        (jarsRes as List).asMap().entries.map((entry) {
+          final index = entry.key;
+          final j = entry.value;
+          return MapEntry(
+            j['id'] as String,
+            {
+              'name': j['name'] as String? ?? '',
+              'color': jarColors[index % jarColors.length],
+            },
+          );
+        }),
+      );
+
+      // Map budgets data
+      final budgets = (budgetsRes as List).map((b) {
+        final categoryId = b['category_id'] as String?;
+        final jarId = b['jar_id'] as String?;
+        final category = categoryId != null ? categories[categoryId] : null;
+        final jar = jarId != null ? jars[jarId] : null;
+
+        // Parse color
+        Color? color;
+        IconData? icon;
+        String name = '';
+
+        if (category != null) {
+          name = category['name'] as String;
+          final categoryIcon = category['icon'] as String?;
+          final categoryColor = category['color'] as String?;
+          
+          // Luôn ưu tiên lấy từ default categories trước (để đảm bảo icon/color đúng)
+          final defaultCategory = _getDefaultCategoryByName(name);
+          if (defaultCategory != null) {
+            icon = defaultCategory['icon'] as IconData;
+            color = defaultCategory['color'] as Color;
+          } else if (categoryIcon != null && categoryColor != null) {
+            // Nếu không có trong default, dùng từ database
+            try {
+              final colorStr = categoryColor;
+              color = Color(
+                int.parse(colorStr.replaceAll('#', ''), radix: 16) + 0xFF000000,
+              );
+            } catch (_) {
+              color = AppColors.gray500;
+            }
+            icon = _getIconFromString(categoryIcon);
+          } else {
+            // Fallback cuối cùng
+            icon = Icons.category;
+            color = AppColors.gray500;
+          }
+        } else if (jar != null) {
+          name = jar['name'] as String;
+          color = jar['color'] as Color? ?? AppColors.primary;
+          icon = Icons.savings_outlined;
+        }
+
+        return {
+          'id': b['id'] as String,
+          'name': name,
+          'type': categoryId != null ? 'category' : 'jar',
+          'categoryId': categoryId,
+          'jarId': jarId,
+          'limit': (b['limit_amount'] as num?)?.toDouble() ?? 0.0,
+          'spent': (b['spent_amount'] as num?)?.toDouble() ?? 0.0,
+          'period': b['period'] as String? ?? 'MONTHLY',
+          'startDate': b['start_date'] as String?,
+          'endDate': b['end_date'] as String?,
+          'isActive': b['is_active'] as bool? ?? true,
+          'icon': icon ?? Icons.category,
+          'color': color ?? AppColors.gray500,
+        };
+      }).toList();
+
+      setState(() {
+        _allBudgets = budgets;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  /// Lấy default category theo tên (fallback khi không có trong database)
+  Map<String, dynamic>? _getDefaultCategoryByName(String name) {
+    final defaultCategories = _getDefaultExpenseCategories();
+    // Normalize tên: lowercase, trim, loại bỏ dấu câu
+    final normalizedName = name.toLowerCase().trim();
+    return defaultCategories[normalizedName];
+  }
+
+  /// Map các default categories với icon và color
+  Map<String, Map<String, dynamic>> _getDefaultExpenseCategories() {
+    return {
+      'chợ, siêu thị': {
+        'icon': Icons.shopping_bag_outlined,
+        'color': const Color(0xFFFFB74D), // Orange
+      },
+      'ăn uống': {
+        'icon': Icons.restaurant_outlined,
+        'color': const Color(0xFFFFE651), // Vàng
+      },
+      'di chuyển': {
+        'icon': Icons.directions_car_outlined,
+        'color': const Color(0xFF42A5F5), // Blue
+      },
+      'mua sắm': {
+        'icon': Icons.shopping_cart_outlined,
+        'color': const Color(0xFFEC407A), // Pink đậm
+      },
+      'giải trí': {
+        'icon': Icons.card_giftcard_outlined,
+        'color': const Color(0xFFAB47BC), // Purple
+      },
+      'làm đẹp': {
+        'icon': Icons.brush_outlined,
+        'color': const Color(0xFFE91E63), // Pink đỏ
+      },
+      'sức khỏe': {
+        'icon': Icons.favorite_outlined,
+        'color': const Color(0xFFEF5350), // Red
+      },
+      'từ thiện': {
+        'icon': Icons.volunteer_activism_outlined,
+        'color': const Color(0xFFFF7043), // Orange đỏ
+      },
+      'hóa đơn': {
+        'icon': Icons.receipt_long_outlined,
+        'color': const Color(0xFF26A69A), // Teal
+      },
+      'nhà cửa': {
+        'icon': Icons.home_outlined,
+        'color': const Color(0xFF7E57C2), // Deep purple
+      },
+      'người thân': {
+        'icon': Icons.people_outline,
+        'color': const Color(0xFFF06292), // Pink nhạt
+      },
+      'đầu tư': {
+        'icon': Icons.account_balance_wallet_outlined,
+        'color': const Color(0xFF66BB6A), // Green
+      },
+      'học tập': {
+        'icon': Icons.school_outlined,
+        'color': const Color(0xFF5C6BC0), // Indigo
+      },
+    };
+  }
+
+  IconData _getIconFromString(String? iconName) {
+    if (iconName == null || iconName.isEmpty) {
+      return Icons.category;
+    }
+    switch (iconName.toLowerCase()) {
+      case 'shopping_bag':
+      case 'shopping_bag_outlined':
+        return Icons.shopping_bag_outlined;
+      case 'restaurant':
+      case 'restaurant_outlined':
+        return Icons.restaurant_outlined;
+      case 'directions_car':
+      case 'directions_car_outlined':
+        return Icons.directions_car_outlined;
+      case 'shopping_cart':
+      case 'shopping_cart_outlined':
+        return Icons.shopping_cart_outlined;
+      case 'card_giftcard':
+      case 'card_giftcard_outlined':
+        return Icons.card_giftcard_outlined;
+      case 'brush':
+      case 'brush_outlined':
+        return Icons.brush_outlined;
+      case 'favorite':
+      case 'favorite_outlined':
+        return Icons.favorite_outlined;
+      case 'volunteer_activism':
+      case 'volunteer_activism_outlined':
+        return Icons.volunteer_activism_outlined;
+      case 'receipt_long':
+      case 'receipt_long_outlined':
+        return Icons.receipt_long_outlined;
+      case 'home':
+      case 'home_outlined':
+        return Icons.home_outlined;
+      case 'people':
+      case 'people_outline':
+        return Icons.people_outline;
+      case 'account_balance_wallet':
+      case 'account_balance_wallet_outlined':
+        return Icons.account_balance_wallet_outlined;
+      case 'school':
+      case 'school_outlined':
+        return Icons.school_outlined;
+      case 'savings':
+      case 'savings_outlined':
+        return Icons.savings_outlined;
+      default:
+        return Icons.category;
+    }
+  }
 
   List<Map<String, dynamic>> get _filteredBudgets {
     if (_selectedTab == 0) return _allBudgets;
@@ -212,26 +365,35 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
 
             // Budget list
             Expanded(
-              child: _filteredBudgets.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                      itemCount: _filteredBudgets.length,
-                      itemBuilder: (context, index) {
-                        return _BudgetCard(
-                          budget: _filteredBudgets[index],
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => BudgetDetailScreen(
-                                  budget: _filteredBudgets[index],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredBudgets.isEmpty
+                      ? _buildEmptyState()
+                      : RefreshIndicator(
+                          onRefresh: _loadBudgets,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                            itemCount: _filteredBudgets.length,
+                            itemBuilder: (context, index) {
+                              return _BudgetCard(
+                                budget: _filteredBudgets[index],
+                                onTap: () async {
+                                  final result = await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => BudgetDetailScreen(
+                                        budget: _filteredBudgets[index],
+                                      ),
+                                    ),
+                                  );
+                                  // Refresh nếu budget đã bị xóa
+                                  if (result == true) {
+                                    _loadBudgets();
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                        ),
             ),
 
             // Add button
@@ -247,7 +409,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                       ),
                     );
                     if (result == true) {
-                      // TODO: Refresh budget list
+                      _loadBudgets();
                     }
                   },
                   icon: const Icon(Icons.add),
@@ -522,4 +684,3 @@ class _BudgetCard extends StatelessWidget {
     );
   }
 }
-

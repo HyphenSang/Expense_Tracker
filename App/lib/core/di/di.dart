@@ -8,6 +8,7 @@ import '../../data/repositories/user.dart';
 import '../../data/repositories/notification.dart';
 import '../../data/repositories/expense.dart';
 import '../../data/repositories/category.dart';
+import '../../data/repositories/budget.dart';
 import '../../domain/repositories/auth.dart' as domain;
 import '../../domain/repositories/transaction.dart' as domain_transaction;
 import '../../domain/repositories/jar.dart' as domain_jar;
@@ -17,6 +18,7 @@ import '../../domain/repositories/user.dart' as domain_user;
 import '../../domain/repositories/notification.dart' as domain_notification;
 import '../../domain/repositories/expense.dart' as domain_expense;
 import '../../domain/repositories/category.dart' as domain_category;
+import '../../domain/repositories/budget.dart' as domain_budget;
 
 /// Dependency Injection container
 /// 
@@ -35,6 +37,7 @@ class DI {
   static final domain_notification.NotificationRepository _notificationRepository = NotificationRepositoryImpl();
   static final domain_expense.ExpenseRepository _expenseRepository = ExpenseRepositoryImpl(_supabaseDataSource);
   static final domain_category.CategoryRepository _categoryRepository = CategoryRepositoryImpl(_supabaseDataSource);
+  static final domain_budget.BudgetRepository _budgetRepository = BudgetRepositoryImpl(_supabaseDataSource);
 
   // Getters
   static domain.AuthRepository get authRepository => _authRepository;
@@ -46,5 +49,6 @@ class DI {
   static domain_notification.NotificationRepository get notificationRepository => _notificationRepository;
   static domain_expense.ExpenseRepository get expenseRepository => _expenseRepository;
   static domain_category.CategoryRepository get categoryRepository => _categoryRepository;
+  static domain_budget.BudgetRepository get budgetRepository => _budgetRepository;
 }
 

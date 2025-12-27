@@ -256,23 +256,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                     filled: true,
                     fillColor: Colors.white,
-                    prefixIcon: Padding(
-                      padding: const EdgeInsets.only(left: AppSpacing.lg),
-                      child: Align(
-                        widthFactor: 1.0,
-                        child: Text(
-                          '\$',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.gray900,
-                          ),
-                        ),
-                      ),
-                    ),
-                    prefixIconConstraints: const BoxConstraints(
-                      minWidth: 30,
-                      minHeight: 0,
-                    ),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [

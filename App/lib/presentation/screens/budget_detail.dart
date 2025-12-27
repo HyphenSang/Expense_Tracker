@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
+import 'package:expenses/core/di/di.dart';
 
 /// Màn hình chi tiết ngân sách.
 ///
@@ -623,27 +624,66 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
   void _showDeleteDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: Colors.white,
         title: const Text('Xóa ngân sách'),
         content: const Text(
           'Bạn có chắc chắn muốn xóa ngân sách này? Hành động này không thể hoàn tác.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Hủy'),
           ),
           TextButton(
-            onPressed: () {
-              // TODO: Delete budget from API
-              Navigator.of(context).pop();
-              Navigator.of(context).pop(true); // Return to budgets screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Đã xóa ngân sách'),
-                  backgroundColor: AppColors.success,
+            onPressed: () async {
+              Navigator.of(dialogContext).pop(); // Đóng dialog
+              
+              // Hiển thị loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (loadingContext) => const Center(
+                  child: CircularProgressIndicator(),
                 ),
               );
+
+              try {
+                final budgetId = widget.budget['id'] as String;
+                await DI.budgetRepository.deleteBudget(budgetId);
+                
+                if (!mounted) return;
+                
+                // Đóng loading
+                Navigator.of(context).pop();
+                
+                // Quay về màn hình danh sách với flag refresh
+                Navigator.of(context).pop(true);
+                
+                // Hiển thị thông báo thành công
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã xóa ngân sách thành công'),
+                    backgroundColor: AppColors.success,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                
+                // Đóng loading
+                Navigator.of(context).pop();
+                
+                // Hiển thị thông báo lỗi
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi khi xóa ngân sách: ${e.toString()}'),
+                    backgroundColor: AppColors.error,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
             },
             style: TextButton.styleFrom(
               foregroundColor: AppColors.error,

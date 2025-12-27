@@ -347,5 +347,108 @@ class SupabaseDataSource {
       throw Exception('Không thể cập nhật mật khẩu');
     }
   }
+
+  // Budget operations
+  Future<List<Map<String, dynamic>>> getBudgets(String userId) async {
+    final result = await _client
+        .from('budgets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(result);
+  }
+
+  Future<Map<String, dynamic>> createBudget(
+    Map<String, dynamic> data,
+  ) async {
+    final result = await _client
+        .from('budgets')
+        .insert(data)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(result);
+  }
+
+  Future<List<Map<String, dynamic>>> getBudgetsByCategory({
+    required String userId,
+    required String categoryId,
+  }) async {
+    final result = await _client
+        .from('budgets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('category_id', categoryId)
+        .eq('is_active', true);
+    return List<Map<String, dynamic>>.from(result);
+  }
+
+  Future<List<Map<String, dynamic>>> getBudgetsByJar({
+    required String userId,
+    required String jarId,
+  }) async {
+    final result = await _client
+        .from('budgets')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('jar_id', jarId)
+        .eq('is_active', true);
+    return List<Map<String, dynamic>>.from(result);
+  }
+
+  Future<List<Map<String, dynamic>>> getJarAllocationsByTransaction({
+    required String transactionId,
+  }) async {
+    final result = await _client
+        .from('jar_allocations')
+        .select('jar_id')
+        .eq('transaction_id', transactionId);
+    return List<Map<String, dynamic>>.from(result);
+  }
+
+  Future<List<Map<String, dynamic>>> getJarAllocationsByDateRange({
+    required String jarId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    // Lấy tất cả jar_allocations của jar này với join transactions
+    final allocations = await _client
+        .from('jar_allocations')
+        .select('amount, transaction_id, transactions!inner(id, occurred_at)')
+        .eq('jar_id', jarId);
+
+    // Filter trong Dart theo date range
+    final filtered = (allocations as List).where((a) {
+      final transaction = a['transactions'] as Map<String, dynamic>?;
+      if (transaction == null) return false;
+      final occurredAtStr = transaction['occurred_at'] as String?;
+      if (occurredAtStr == null) return false;
+      final occurredAt = DateTime.parse(occurredAtStr);
+      return occurredAt.isAfter(startDate.subtract(const Duration(seconds: 1))) &&
+          occurredAt.isBefore(endDate);
+    }).toList();
+
+    return List<Map<String, dynamic>>.from(filtered);
+  }
+
+  Future<void> updateBudget({
+    required String budgetId,
+    required Map<String, dynamic> data,
+  }) async {
+    await _client
+        .from('budgets')
+        .update({
+          ...data,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', budgetId);
+  }
+
+  Future<void> deleteBudget(String budgetId) async {
+    await _client
+        .from('budgets')
+        .delete()
+        .eq('id', budgetId);
+  }
 }
 
