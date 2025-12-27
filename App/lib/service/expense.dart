@@ -124,15 +124,61 @@ class ExpenseService {
 
     final saved = income - expense;
 
-    // Nếu chưa có dữ liệu thật, fallback sang sample để UI không bị trống.
-    if (income == 0 && expense == 0 && totalBalance == 0) {
-      return const ExpenseSummary(
-        totalBalance: SampleData.totalBalance,
-        monthlyIncome: SampleData.monthlyIncome,
-        monthlyExpense: SampleData.monthlyExpense,
-        monthlySaved: SampleData.monthlySaved,
-      );
+    return ExpenseSummary(
+      totalBalance: _formatCurrency(totalBalance),
+      monthlyIncome: _formatCurrency(income),
+      monthlyExpense: _formatCurrency(expense),
+      monthlySaved: _formatCurrency(saved),
+    );
+  }
+
+  /// Lấy tóm tắt số liệu cho tháng cụ thể.
+  static Future<ExpenseSummary> getSummaryForMonth({
+    required int year,
+    required int month,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      throw StateError('Chưa đăng nhập – không thể tải dữ liệu tài chính.');
     }
+
+    final monthStart = DateTime(year, month, 1);
+    final monthEnd = DateTime(year, month + 1, 1);
+
+    // 1. Tổng số dư từ bảng wallets (luôn lấy hiện tại)
+    final walletsRes = await _client
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+    num totalBalance = 0;
+    for (final row in walletsRes) {
+      totalBalance += (row['balance'] as num?) ?? 0;
+    }
+
+    // 2. Thu/chi trong tháng được chọn
+    final txRes = await _client
+        .from('transactions')
+        .select('type, amount, occurred_at')
+        .eq('user_id', user.id)
+        .gte('occurred_at', monthStart.toIso8601String())
+        .lt('occurred_at', monthEnd.toIso8601String());
+
+    num income = 0;
+    num expense = 0;
+
+    for (final row in txRes) {
+      final type = row['type'] as String?;
+      final amount = (row['amount'] as num?) ?? 0;
+      if (type == 'INCOME') {
+        income += amount;
+      } else if (type == 'EXPENSE') {
+        expense += amount;
+      }
+    }
+
+    final saved = income - expense;
 
     return ExpenseSummary(
       totalBalance: _formatCurrency(totalBalance),
@@ -153,7 +199,7 @@ class ExpenseService {
 
     final res = await _client
         .from('transactions')
-        .select('type, amount, note, occurred_at, categories(name)')
+        .select('id, type, amount, note, occurred_at, categories(name)')
         .eq('user_id', user.id)
         .order('occurred_at', ascending: false) // Giao dịch gần nhất ở trên
         .limit(limit);
@@ -161,13 +207,51 @@ class ExpenseService {
     final list = <TransactionItemData>[];
 
     for (final row in res as List) {
+      final id = row['id'] as String?;
       final type = row['type'] as String?;
       final amount = (row['amount'] as num?) ?? 0;
       final note = (row['note'] as String?) ?? 'Giao dịch';
+      // Lấy occurred_at từ Supabase (timestamp with time zone)
+      // Supabase trả về UTC time với format: "2025-12-24 21:07:12.039+00"
+      // Giữ nguyên UTC time để hiển thị đúng như trong database (không convert sang local)
       final occurredAtStr = row['occurred_at'] as String?;
       DateTime? occurredAt;
       if (occurredAtStr != null) {
-        occurredAt = DateTime.tryParse(occurredAtStr)?.toLocal();
+        try {
+          // Parse ISO 8601 string từ Supabase (UTC time)
+          // Format: "2025-12-24T21:07:12.039Z" hoặc "2025-12-24 21:07:12.039+00"
+          final parsed = DateTime.parse(occurredAtStr);
+          // Giữ nguyên UTC time để hiển thị đúng như trong database (21:07)
+          // Không convert sang local time
+          if (parsed.isUtc) {
+            occurredAt = parsed; // Giữ UTC
+          } else if (occurredAtStr.endsWith('+00') || occurredAtStr.endsWith('Z')) {
+            // Nếu string có +00 hoặc Z, đảm bảo là UTC
+            occurredAt = DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          } else {
+            // Nếu không có timezone, giả định là UTC
+            occurredAt = parsed.isUtc ? parsed : DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          }
+        } catch (e) {
+          // Nếu parse lỗi, thử parse lại
+          occurredAt = DateTime.tryParse(occurredAtStr);
+        }
       }
 
       final isIncome = type == 'INCOME';
@@ -186,6 +270,7 @@ class ExpenseService {
 
       list.add(
         TransactionItemData(
+          id: id,
           title: note,
           category: categoryName,
           amount: '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
@@ -198,7 +283,112 @@ class ExpenseService {
     }
 
     if (list.isEmpty) {
-      return SampleData.recentTransactions;
+      return [];
+    }
+
+    return list;
+  }
+
+  /// Lấy giao dịch theo tháng/năm (dành cho màn All Transactions).
+  static Future<List<TransactionItemData>> getTransactionsByMonth({
+    required int year,
+    required int month,
+    int limit = 1000,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      throw StateError('Chưa đăng nhập – không thể tải giao dịch.');
+    }
+
+    final start = DateTime(year, month, 1);
+    final end = DateTime(year, month + 1, 1);
+
+    final res = await _client
+        .from('transactions')
+        .select('type, amount, note, occurred_at, categories(name)')
+        .eq('user_id', user.id)
+        .gte('occurred_at', start.toIso8601String())
+        .lt('occurred_at', end.toIso8601String())
+        .order('occurred_at', ascending: false)
+        .limit(limit);
+
+    final list = <TransactionItemData>[];
+
+    for (final row in res as List) {
+      final type = row['type'] as String?;
+      final amount = (row['amount'] as num?) ?? 0;
+      final note = (row['note'] as String?) ?? 'Giao dịch';
+      // Lấy occurred_at từ Supabase (timestamp with time zone)
+      // Supabase trả về UTC time với format: "2025-12-24 21:07:12.039+00"
+      // Giữ nguyên UTC time để hiển thị đúng như trong database (không convert sang local)
+      final occurredAtStr = row['occurred_at'] as String?;
+      DateTime? occurredAt;
+      if (occurredAtStr != null) {
+        try {
+          // Parse ISO 8601 string từ Supabase (UTC time)
+          // Format: "2025-12-24T21:07:12.039Z" hoặc "2025-12-24 21:07:12.039+00"
+          final parsed = DateTime.parse(occurredAtStr);
+          // Giữ nguyên UTC time để hiển thị đúng như trong database (21:07)
+          // Không convert sang local time
+          if (parsed.isUtc) {
+            occurredAt = parsed; // Giữ UTC
+          } else if (occurredAtStr.endsWith('+00') || occurredAtStr.endsWith('Z')) {
+            // Nếu string có +00 hoặc Z, đảm bảo là UTC
+            occurredAt = DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          } else {
+            // Nếu không có timezone, giả định là UTC
+            occurredAt = parsed.isUtc ? parsed : DateTime.utc(
+              parsed.year,
+              parsed.month,
+              parsed.day,
+              parsed.hour,
+              parsed.minute,
+              parsed.second,
+              parsed.millisecond,
+            );
+          }
+        } catch (e) {
+          // Nếu parse lỗi, thử parse lại
+          occurredAt = DateTime.tryParse(occurredAtStr);
+        }
+      }
+
+      final isIncome = type == 'INCOME';
+      final categoryName = (row['categories'] as Map?)?['name'] as String? ??
+          (isIncome ? 'Thu nhập' : 'Chi tiêu');
+      final color = isIncome ? AppColors.success : AppColors.error;
+      final icon =
+          isIncome ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded;
+
+      // Format date và time
+      String timeLabel = '';
+      String dateLabel = '';
+      if (occurredAt != null) {
+        timeLabel =
+            '${occurredAt.hour.toString().padLeft(2, '0')}:${occurredAt.minute.toString().padLeft(2, '0')}';
+        dateLabel =
+            '${occurredAt.day}/${occurredAt.month}/${occurredAt.year}';
+      }
+
+      list.add(
+        TransactionItemData(
+          title: note,
+          category: categoryName,
+          amount: '${isIncome ? '+' : '-'}${_formatCurrency(amount)}',
+          icon: icon,
+          color: color,
+          time: '$timeLabel - $dateLabel',
+          occurredAt: occurredAt,
+        ),
+      );
     }
 
     return list;
@@ -235,33 +425,12 @@ class ExpenseService {
       );
     }
 
-    if (list.isEmpty) {
-      // Fallback demo 3 ví nếu user chưa tạo ví.
-      return const [
-        WalletInfo(
-          name: 'Ví tiền mặt',
-          type: 'Cash',
-          balanceFormatted: '2.500.000 ₫',
-        ),
-        WalletInfo(
-          name: 'Ngân hàng ACB',
-          type: 'Bank',
-          balanceFormatted: '10.000.000 ₫',
-        ),
-        WalletInfo(
-          name: 'Thẻ tín dụng',
-          type: 'Credit',
-          balanceFormatted: '3.000.000 ₫',
-        ),
-      ];
-    }
-
     return list;
   }
 
   /// Lấy cấu hình 6 hũ tài chính từ bảng `jars`.
   ///
-  /// Nếu user chưa có, trả về dữ liệu mẫu của [SampleData.jars].
+  /// Nếu user chưa có, trả về danh sách rỗng.
   static Future<List<JarData>> getJars() async {
     final user = _currentUser;
     if (user == null) {
@@ -305,7 +474,7 @@ class ExpenseService {
     }
 
     if (list.isEmpty) {
-      return SampleData.jars;
+      return [];
     }
 
     return list;
@@ -379,21 +548,6 @@ class ExpenseService {
 
     String monthLabel(int m) => 'Tháng $m';
 
-    if (prevIncome == 0 &&
-        prevExpense == 0 &&
-        currIncome == 0 &&
-        currExpense == 0) {
-      // Dữ liệu mẫu giống ảnh tham khảo
-      return const MonthlyComparison(
-        previousMonthLabel: 'Tháng 11',
-        currentMonthLabel: 'Tháng 12',
-        previousIncome: '12.000.000 ₫',
-        previousExpense: '7.500.000 ₫',
-        currentIncome: '15.000.000 ₫',
-        currentExpense: '8.500.000 ₫',
-      );
-    }
-
     return MonthlyComparison(
       previousMonthLabel: monthLabel(previousStart.month),
       currentMonthLabel: monthLabel(currentStart.month),
@@ -460,34 +614,91 @@ class ExpenseService {
 
     bool isIncrease(num current, num previous) => current > previous;
 
-    if (thisWeek == 0 &&
-        lastWeek == 0 &&
-        thisMonth == 0 &&
-        lastMonth == 0 &&
-        thisYear == 0 &&
-        lastYear == 0) {
-      // Dữ liệu mẫu giống ảnh tham khảo
-      return const [
-        SpendingTrendItem(
-          label: 'Tuần này',
-          amount: '2.500.000 ₫',
-          changePercent: '12.5%',
-          isIncrease: false,
-        ),
-        SpendingTrendItem(
-          label: 'Tháng này',
-          amount: '8.500.000 ₫',
-          changePercent: '8.3%',
-          isIncrease: false,
-        ),
-        SpendingTrendItem(
-          label: 'Năm này',
-          amount: '95.000.000 ₫',
-          changePercent: '15.2%',
-          isIncrease: true,
-        ),
-      ];
+
+    return [
+      SpendingTrendItem(
+        label: 'Tuần này',
+        amount: _formatCurrency(thisWeek),
+        changePercent: pct(thisWeek, lastWeek),
+        isIncrease: isIncrease(thisWeek, lastWeek),
+      ),
+      SpendingTrendItem(
+        label: 'Tháng này',
+        amount: _formatCurrency(thisMonth),
+        changePercent: pct(thisMonth, lastMonth),
+        isIncrease: isIncrease(thisMonth, lastMonth),
+      ),
+      SpendingTrendItem(
+        label: 'Năm này',
+        amount: _formatCurrency(thisYear),
+        changePercent: pct(thisYear, lastYear),
+        isIncrease: isIncrease(thisYear, lastYear),
+      ),
+    ];
+  }
+
+  /// Lấy xu hướng chi tiêu cho tháng cụ thể.
+  static Future<List<SpendingTrendItem>> getSpendingTrendsForMonth({
+    required int year,
+    required int month,
+  }) async {
+    final user = _currentUser;
+    if (user == null) {
+      throw StateError('Chưa đăng nhập – không thể tải xu hướng chi tiêu.');
     }
+
+    // Tính tháng trước
+    final prevMonth = month == 1 ? 12 : month - 1;
+    final prevYear = month == 1 ? year - 1 : year;
+
+    // Tháng được chọn
+    final selectedMonthStart = DateTime(year, month, 1);
+    final selectedMonthEnd = DateTime(year, month + 1, 1);
+
+    // Tháng trước
+    final prevMonthStart = DateTime(prevYear, prevMonth, 1);
+    final prevMonthEnd = selectedMonthStart;
+
+    // Năm được chọn
+    final selectedYearStart = DateTime(year, 1, 1);
+    final selectedYearEnd = DateTime(year + 1, 1, 1);
+
+    // Năm trước
+    final prevYearStart = DateTime(year - 1, 1, 1);
+    final prevYearEnd = selectedYearStart;
+
+    // Tuần này (tính từ tháng được chọn)
+    final now = DateTime(year, month, 15); // Giữa tháng để tính tuần
+    final thisWeekStart = now.subtract(Duration(days: now.weekday - 1));
+    final thisWeekEnd = thisWeekStart.add(const Duration(days: 7));
+    final lastWeekStart = thisWeekStart.subtract(const Duration(days: 7));
+    final lastWeekEnd = thisWeekStart;
+
+    final userId = user.id;
+
+    Future<num> sumExpense(DateTime s, DateTime e) => _sumAmountInRange(
+          userId: userId,
+          start: s,
+          end: e,
+          type: 'EXPENSE',
+        );
+
+    final thisWeek = await sumExpense(thisWeekStart, thisWeekEnd);
+    final lastWeek = await sumExpense(lastWeekStart, lastWeekEnd);
+
+    final thisMonth = await sumExpense(selectedMonthStart, selectedMonthEnd);
+    final lastMonth = await sumExpense(prevMonthStart, prevMonthEnd);
+
+    final thisYear = await sumExpense(selectedYearStart, selectedYearEnd);
+    final lastYear = await sumExpense(prevYearStart, prevYearEnd);
+
+    String pct(num current, num previous) {
+      if (previous <= 0) return '0%';
+      final p = ((current - previous) / previous * 100).abs();
+      return '${p.toStringAsFixed(1)}%';
+    }
+
+    bool isIncrease(num current, num previous) => current > previous;
 
     return [
       SpendingTrendItem(
@@ -812,39 +1023,7 @@ class ExpenseService {
     final total = byCategory.values.fold<num>(0, (p, e) => p + e);
 
     if (total <= 0) {
-      // Fallback dựa theo 6 hũ tài chính mẫu
-      return const [
-        CategorySpendingSummary(
-          name: 'Nhu cầu thiết yếu',
-          amount: 0,
-          percentage: 55.0,
-        ),
-        CategorySpendingSummary(
-          name: 'Tiết kiệm dài hạn',
-          amount: 0,
-          percentage: 10.0,
-        ),
-        CategorySpendingSummary(
-          name: 'Giáo dục',
-          amount: 0,
-          percentage: 10.0,
-        ),
-        CategorySpendingSummary(
-          name: 'Hưởng thụ',
-          amount: 0,
-          percentage: 10.0,
-        ),
-        CategorySpendingSummary(
-          name: 'Tự do tài chính',
-          amount: 0,
-          percentage: 10.0,
-        ),
-        CategorySpendingSummary(
-          name: 'Cho đi',
-          amount: 0,
-          percentage: 5.0,
-        ),
-      ];
+      return [];
     }
 
     final list = byCategory.entries

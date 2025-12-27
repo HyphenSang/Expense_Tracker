@@ -1,6 +1,5 @@
 import { NavLink } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/SpaceDashboard';
-import ReceiptIcon from '@mui/icons-material/ReceiptLong';
 import GroupIcon from '@mui/icons-material/Group';
 import CloseIcon from '@mui/icons-material/Close';
 import {
@@ -18,7 +17,6 @@ import {
 
 const navItems = [
   { label: 'Tổng quan', icon: <DashboardIcon />, path: '/' },
-  { label: 'Chi tiêu', icon: <ReceiptIcon />, path: '/expenses' },
   { label: 'Người dùng', icon: <GroupIcon />, path: '/users' },
 ];
 

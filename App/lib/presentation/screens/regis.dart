@@ -3,8 +3,9 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/presentation/screens/home.dart';
 import 'package:expenses/presentation/widgets/sub_button.dart';
 import 'package:expenses/presentation/state/password_strength_indicator.dart';
-import 'package:expenses/service/auth_service.dart';
-import 'package:expenses/service/user_service.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/user.dart';
 
 class RegisScreen extends StatefulWidget {
   final String email;
@@ -21,6 +22,10 @@ class _RegisScreenState extends State<RegisScreen> {
   PasswordStrengthData? _passwordStrengthData;
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  // Use cases
+  final _signUp = SignUp(DI.authRepository);
+  final _ensureCurrentUserProfile = EnsureCurrentUserProfile(DI.userRepository);
 
   @override
   void initState() {
@@ -45,7 +50,7 @@ class _RegisScreenState extends State<RegisScreen> {
     });
 
     try {
-      final response = await AuthService.signUp(
+      await _signUp(
         email: widget.email.isNotEmpty
             ? widget.email
             : _usernameController.text.trim(),
@@ -53,27 +58,25 @@ class _RegisScreenState extends State<RegisScreen> {
         username: _usernameController.text.trim(),
       );
 
-      if (response.user != null) {
-        await UserService.ensureCurrentUserProfile(
-          username: _usernameController.text.trim(),
-        );
+      await _ensureCurrentUserProfile(
+        username: _usernameController.text.trim(),
+      );
 
-        if (!mounted) return;
+      if (!mounted) return;
 
-        // Register successfully
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đăng ký thành công!'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+      // Register successfully
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Đăng ký thành công!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
 
-        // Navigate to Home screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      }
+      // Navigate to Home screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => HomeScreen()),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

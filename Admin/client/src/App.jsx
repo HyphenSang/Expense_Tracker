@@ -3,8 +3,9 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import DashboardLayout from './layouts/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
-import ExpensesPage from './pages/ExpensesPage';
 import UsersPage from './pages/UsersPage';
+import LoginPage from './pages/LoginPage';
+import ProtectedRoute from './components/ProtectedRoute';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -67,9 +68,16 @@ class ErrorBoundary extends Component {
 const App = () => (
   <ErrorBoundary>
     <Routes>
-      <Route element={<DashboardLayout />}>
+      {/* Login route - không cần ProtectedRoute */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<DashboardPage />} />
-        <Route path="expenses" element={<ExpensesPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

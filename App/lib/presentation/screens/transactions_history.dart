@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/expense_service.dart';
+import 'package:expenses/service/expense.dart' show ExpenseService;
 import 'package:fl_chart/fl_chart.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/expense.dart';
+import 'package:expenses/domain/repositories/expense.dart' as domain_expense;
 
 /// Màn hình lịch sử giao dịch với 2 tab: Hoạt động và Thống kê.
 class TransactionsHistoryScreen extends StatefulWidget {
@@ -20,12 +23,17 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   // Thống kê
   DateTime _selectedMonth = DateTime.now();
   Map<String, num>? _incomeExpense;
-  Map<String, dynamic>? _comparison;
-  List<CategorySpendingSummary>? _categorySpending;
-  List<CategorySpendingSummary>? _categoryIncome; // Thêm dữ liệu thu nhập
+  domain_expense.MonthlyComparison? _comparison;
+  List<domain_expense.CategorySpendingSummary>? _categorySpending;
+  List<domain_expense.CategorySpendingSummary>? _categoryIncome; // Thêm dữ liệu thu nhập
   bool _isSubCategory = true; // true: Danh mục con, false: Danh mục cha
   final Set<String> _expandedParents = {}; // Track expanded parent categories
   bool _isExpenseSelected = true; // true: Chi tiêu được chọn, false: Thu nhập được chọn
+  bool _isLoading = true;
+
+  // Use cases
+  final _getAnalytics = GetAnalytics(DI.expenseRepository);
+  final _getCategoryData = GetCategoryData(DI.expenseRepository);
 
   @override
   void initState() {
@@ -34,23 +42,37 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   }
 
   Future<void> _loadStatistics() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
     try {
-      final incomeExpense = await ExpenseService.getIncomeExpenseForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final comparison = await ExpenseService.getMonthComparison(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final categories = await ExpenseService.getCategorySpendingForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
-      final incomeCategories = await ExpenseService.getCategoryIncomeForMonth(
-        year: _selectedMonth.year,
-        month: _selectedMonth.month,
-      );
+      // Chạy tất cả API calls song song để tăng tốc độ load
+      final results = await Future.wait([
+        _getAnalytics.getIncomeExpense(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        _getAnalytics.getMonthComparison(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        _getCategoryData.getSpending(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        _getCategoryData.getIncome(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+      ]);
+
+      final incomeExpense = results[0] as Map<String, num>;
+      final comparison = results[1] as domain_expense.MonthlyComparison;
+      final categories = results[2] as List<domain_expense.CategorySpendingSummary>;
+      final incomeCategories = results[3] as List<domain_expense.CategorySpendingSummary>;
 
       if (mounted) {
         setState(() {
@@ -58,6 +80,7 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
           _comparison = comparison;
           _categorySpending = categories;
           _categoryIncome = incomeCategories;
+          _isLoading = false;
         });
       }
     } catch (e) {
@@ -68,6 +91,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
             backgroundColor: AppColors.error,
           ),
         );
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -99,15 +125,40 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   Widget _buildStatisticsTab() {
     final income = _incomeExpense?['income'] ?? 0;
     final expense = _incomeExpense?['expense'] ?? 0;
-    final change = _comparison?['change'] as Map<String, num>?;
-    final expenseChange = change?['expense'] ?? 0;
+    
+    // Tính change từ MonthlyComparison
+    num expenseChange = 0;
+    num incomeChange = 0;
+    if (_comparison != null) {
+      // Parse currency strings to numbers (remove " ₫" and ".")
+      final parseCurrency = (String value) {
+        final cleaned = value.replaceAll(' ₫', '').replaceAll('.', '');
+        return num.tryParse(cleaned) ?? 0;
+      };
+      
+      final prevExpense = parseCurrency(_comparison!.previousExpense);
+      final currExpense = parseCurrency(_comparison!.currentExpense);
+      expenseChange = currExpense - prevExpense;
+      
+      final prevIncome = parseCurrency(_comparison!.previousIncome);
+      final currIncome = parseCurrency(_comparison!.currentIncome);
+      incomeChange = currIncome - prevIncome;
+    }
+    
+    // Chọn change dựa trên card được chọn
+    final selectedChange = _isExpenseSelected ? expenseChange : incomeChange;
+    
+    // Kiểm tra xem tháng được chọn có phải là tháng tương lai không
+    final now = DateTime.now();
+    final isFutureMonth = _selectedMonth.year > now.year || 
+        (_selectedMonth.year == now.year && _selectedMonth.month > now.month);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tình hình thu chi
+          // Tình hình thu chi - Luôn hiển thị
           Text(
             'Tình hình thu chi',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -117,13 +168,13 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          // Date selector
+          // Date selector - Luôn hiển thị
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
-                onPressed: () => _changeMonth(-1),
+                onPressed: _isLoading ? null : () => _changeMonth(-1),
               ),
               Row(
                 children: [
@@ -139,13 +190,20 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
-                onPressed: () => _changeMonth(1),
+                onPressed: _isLoading ? null : () => _changeMonth(1),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.xl),
 
-          // Income/Expense cards
+          // Nội dung - Hiển thị loading ở dưới nếu đang load
+          if (_isLoading)
+            const SizedBox(
+              height: 200,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+                // Income/Expense cards
           Row(
             children: [
               Expanded(
@@ -181,8 +239,8 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
           ),
           const SizedBox(height: AppSpacing.lg),
 
-          // Comparison bar
-          if (expenseChange != 0)
+          // Comparison bar - chỉ hiển thị khi không phải tháng tương lai và có thay đổi
+          if (!isFutureMonth && selectedChange != 0)
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
@@ -199,9 +257,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
                   const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Text(
-                      expenseChange > 0
-                          ? 'Tăng ${ExpenseService.formatCurrency(expenseChange.abs())} so với cùng kỳ tháng trước'
-                          : 'Giảm ${ExpenseService.formatCurrency(expenseChange.abs())} so với cùng kỳ tháng trước',
+                      selectedChange > 0
+                          ? 'Tăng ${ExpenseService.formatCurrency(selectedChange.abs())} so với cùng kỳ tháng trước'
+                          : 'Giảm ${ExpenseService.formatCurrency(selectedChange.abs())} so với cùng kỳ tháng trước',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ),
@@ -287,8 +345,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
                           color: cat.color,
                           isSubCategory: true,
                         )).toList()
-                  : // Hiển thị danh mục cha (nhóm)
-                    _buildParentCategories(_categoryIncome!)),
+                    : // Hiển thị danh mục cha (nhóm)
+                      _buildParentCategories(_categoryIncome!)),
+              ],
             ],
           ],
         ],
@@ -297,9 +356,9 @@ class _TransactionsHistoryScreenState extends State<TransactionsHistoryScreen> {
   }
 
   /// Nhóm categories thành parent categories.
-  List<Widget> _buildParentCategories(List<CategorySpendingSummary> categories) {
+  List<Widget> _buildParentCategories(List<domain_expense.CategorySpendingSummary> categories) {
     // Mapping categories vào parent groups
-    final Map<String, List<CategorySpendingSummary>> parentGroups = {};
+    final Map<String, List<domain_expense.CategorySpendingSummary>> parentGroups = {};
     
     for (final cat in categories) {
       String parentName;
@@ -437,7 +496,7 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _DonutChart extends StatelessWidget {
-  final List<CategorySpendingSummary> categories;
+  final List<domain_expense.CategorySpendingSummary> categories;
 
   const _DonutChart({required this.categories});
 
@@ -643,7 +702,7 @@ class _ParentCategoryItem extends StatelessWidget {
   final IconData icon;
   final Color color;
   final bool isExpanded;
-  final List<CategorySpendingSummary> subCategories;
+  final List<domain_expense.CategorySpendingSummary> subCategories;
   final VoidCallback onToggle;
 
   const _ParentCategoryItem({
@@ -746,4 +805,3 @@ class _ParentCategoryItem extends StatelessWidget {
     );
   }
 }
-

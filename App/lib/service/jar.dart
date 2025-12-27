@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:expenses/core/supabase_flutter.dart';
-import 'package:expenses/service/auth_service.dart';
+import 'package:expenses/service/auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 String _slugify(String input) {
@@ -86,9 +86,50 @@ class JarModel {
 class JarService {
   static SupabaseClient get _client => SupabaseConfig.client;
 
+  /// Đảm bảo 6 hũ mặc định được tạo cho user (nếu chưa có)
+  static Future<void> ensureDefaultJars() async {
+    final user = AuthService.getUser();
+    if (user == null) throw StateError('Chưa đăng nhập');
+
+    // Kiểm tra xem user đã có hũ chưa
+    final existing = await _client
+        .from('jars')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+    if (existing.isEmpty) {
+      // Tạo 6 hũ mặc định với tỷ lệ chuẩn theo phương pháp JARS
+      final defaultJars = [
+        {'name': 'Nhu cầu thiết yếu', 'slug': 'necessities', 'percentage': 55, 'icon': 'home', 'color': '#EF4444'},
+        {'name': 'Tiết kiệm dài hạn', 'slug': 'long_term_savings', 'percentage': 10, 'icon': 'savings', 'color': '#3B82F6'},
+        {'name': 'Giáo dục', 'slug': 'education', 'percentage': 10, 'icon': 'school', 'color': '#F59E0B'},
+        {'name': 'Hưởng thụ', 'slug': 'play', 'percentage': 10, 'icon': 'celebration', 'color': '#8B5CF6'},
+        {'name': 'Tự do tài chính', 'slug': 'financial_freedom', 'percentage': 10, 'icon': 'account_balance_wallet', 'color': '#10B981'},
+        {'name': 'Cho đi', 'slug': 'give', 'percentage': 5, 'icon': 'favorite', 'color': '#EC4899'},
+      ];
+
+      for (final jar in defaultJars) {
+        await _client.from('jars').insert({
+          'user_id': user.id,
+          'name': jar['name'],
+          'slug': jar['slug'],
+          'percentage': jar['percentage'],
+          'balance': 0,
+          'icon': jar['icon'],
+          'color': jar['color'],
+          'is_active': true,
+        });
+      }
+    }
+  }
+
   static Future<List<JarModel>> fetchJars() async {
     final user = AuthService.getUser();
     if (user == null) throw StateError('Chưa đăng nhập');
+
+    // Đảm bảo 6 hũ mặc định được tạo
+    await ensureDefaultJars();
 
     final res = await _client
         .from('jars')
@@ -317,4 +358,3 @@ class JarService {
   }
 
 }
-

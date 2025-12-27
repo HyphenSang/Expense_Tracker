@@ -73,6 +73,7 @@ class RecentTransactionsSection extends StatelessWidget {
 }
 
 class TransactionItemData {
+  final String? id; // Transaction ID để dùng cho notifications
   final String title;
   final String category;
   final String amount;
@@ -82,6 +83,7 @@ class TransactionItemData {
   final DateTime? occurredAt; // Thêm để nhóm theo tháng
 
   TransactionItemData({
+    this.id,
     required this.title,
     required this.category,
     required this.amount,

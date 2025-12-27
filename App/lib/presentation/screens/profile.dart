@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/auth_service.dart';
-import 'package:expenses/service/user_service.dart';
-import 'package:expenses/presentation/screens/jar_settings.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/user.dart';
+import 'package:expenses/presentation/screens/welcome.dart';
+import 'package:expenses/presentation/screens/help.dart';
+import 'package:expenses/presentation/screens/notifications.dart';
+import 'package:expenses/presentation/screens/personal_info.dart';
+import 'package:expenses/presentation/screens/security.dart';
+import 'package:expenses/presentation/screens/budgets.dart';
+import 'package:expenses/domain/features/preference.dart';
 
 /// Màn hình hồ sơ người dùng.
 class ProfileScreen extends StatefulWidget {
@@ -16,15 +24,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   String _username = '';
   String _email = '';
+  bool _notificationsEnabled = true;
+
+  final _getNotificationsEnabled = GetNotificationsEnabled(DI.preferenceRepository);
+  final _signOutUseCase = SignOut(DI.authRepository);
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
+  final _getCurrentUserProfile = GetCurrentUserProfile(DI.userRepository);
+  final _ensureCurrentUserProfile = EnsureCurrentUserProfile(DI.userRepository);
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadNotificationSettings();
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    try {
+      final notifications = await _getNotificationsEnabled();
+
+      if (!mounted) return;
+      setState(() {
+        _notificationsEnabled = notifications;
+      });
+    } catch (e) {
+      // Nếu lỗi, giữ giá trị mặc định
+    }
   }
 
   Future<void> _loadProfile() async {
-    final user = AuthService.getUser();
+    final user = _getCurrentUser();
     if (user == null) return;
 
     setState(() {
@@ -33,17 +62,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      var profile = await UserService.getCurrentUserProfile();
-      profile ??= await UserService.ensureCurrentUserProfile();
+      var profile = await _getCurrentUserProfile();
+      profile ??= await _ensureCurrentUserProfile();
 
       if (!mounted) return;
 
       setState(() {
         _username = profile?.username ??
             profile?.fullName ??
-            user.userMetadata?['username'] as String? ??
-            user.email?.split('@').first ??
+            profile?.userMetadata?['username'] as String? ??
+            profile?.email?.split('@').first ??
             'User';
+        _email = profile?.email ?? '';
       });
     } catch (e) {
       if (!mounted) return;
@@ -66,20 +96,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Đăng xuất'),
-        content: const Text('Bạn có chắc chắn muốn đăng xuất?'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        title: const Text(
+          'Đăng xuất',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.gray900,
+          ),
+        ),
+        content: const Text(
+          'Bạn có chắc chắn muốn đăng xuất?',
+          style: TextStyle(
+            color: AppColors.gray700,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Hủy'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+            ),
+            child: const Text(
+              'Hủy',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary,
+              ),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
             ),
-            child: const Text('Đăng xuất'),
+            child: const Text(
+              'Đăng xuất',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
@@ -91,9 +161,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isLoading = true;
     });
     try {
-      await AuthService.signOut();
+      await _signOutUseCase();
       if (!mounted) return;
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      
+      // Navigate về WelcomeScreen và xóa tất cả routes trước đó
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+        (route) => false, // Xóa tất cả routes trước đó
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -194,12 +269,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: Icons.person_outline,
               title: 'Thông tin cá nhân',
               subtitle: 'Cập nhật thông tin của bạn',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng cập nhật thông tin sẽ được bổ sung sau'),
+              onTap: () async {
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const PersonalInfoScreen(),
                   ),
                 );
+                // Nếu cập nhật thành công, reload profile
+                if (result == true) {
+                  _loadProfile();
+                }
               },
             ),
             _buildSettingTile(
@@ -207,9 +286,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'Bảo mật',
               subtitle: 'Mật khẩu và xác thực',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng bảo mật sẽ được bổ sung sau'),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const SecurityScreen(),
                   ),
                 );
               },
@@ -217,55 +296,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildSettingTile(
               icon: Icons.notifications_outlined,
               title: 'Thông báo',
-              subtitle: 'Quản lý thông báo',
+              subtitle: _notificationsEnabled ? 'Đã bật' : 'Đã tắt',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng quản lý thông báo sẽ được bổ sung sau'),
-                  ),
-                );
-              },
-            ),
-            _buildSettingTile(
-              icon: Icons.savings_outlined,
-              title: 'Thiết lập chung các hũ',
-              subtitle: 'Quản lý và phân bổ % các hũ',
-              onTap: () async {
-                final changed = await Navigator.of(context).push(
+                Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => const JarSettingsScreen(),
-                  ),
-                );
-                if (changed == true && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Đã cập nhật cấu hình hũ.'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
-              },
-            ),
-            _buildSettingTile(
-              icon: Icons.language_outlined,
-              title: 'Ngôn ngữ',
-              subtitle: 'Tiếng Việt',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng đổi ngôn ngữ sẽ được bổ sung sau'),
+                    builder: (context) => const NotificationsScreen(),
                   ),
                 );
               },
             ),
             _buildSettingTile(
-              icon: Icons.dark_mode_outlined,
-              title: 'Giao diện',
-              subtitle: 'Chế độ sáng',
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Ngân sách',
+              subtitle: 'Quản lý ngân sách chi tiêu',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng đổi giao diện sẽ được bổ sung sau'),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const BudgetsScreen(),
                   ),
                 );
               },
@@ -286,9 +333,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               title: 'Trợ giúp & Hỗ trợ',
               subtitle: 'Câu hỏi thường gặp',
               onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tính năng trợ giúp sẽ được bổ sung sau'),
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const HelpScreen(),
                   ),
                 );
               },
@@ -301,12 +348,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Về ứng dụng'),
-                    content: const Text('Expense Tracker\nPhiên bản 1.0.0'),
+                    backgroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                    ),
+                    title: const Text(
+                      'Về ứng dụng',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.gray900,
+                      ),
+                    ),
+                    content: const Text(
+                      'Expense Tracker\nPhiên bản 1.0.0',
+                      style: TextStyle(
+                        color: AppColors.gray700,
+                      ),
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Đóng'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.sm,
+                          ),
+                        ),
+                        child: const Text(
+                          'Đóng',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -390,4 +465,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
 }

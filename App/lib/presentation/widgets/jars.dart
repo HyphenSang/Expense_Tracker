@@ -15,7 +15,7 @@ class SixJarsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jarData = jars.isEmpty ? SampleData.jars : jars;
+    final jarData = jars;
     final jarPairs = <List<JarData>>[];
     for (var i = 0; i < jarData.length; i += 2) {
       final pair = <JarData>[jarData[i]];
@@ -217,10 +217,6 @@ class JarDistributionChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totalPercent = jars.fold<double>(
-      0,
-      (previousValue, element) => previousValue + _parsePercentage(element.percentage),
-    );
 
     final chart = AspectRatio(
       aspectRatio: 1,

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/service/transaction_service.dart';
-import 'package:expenses/service/category_service.dart';
-import 'package:expenses/core/supabase_flutter.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/auth.dart';
+import 'package:expenses/domain/features/category.dart';
+import 'package:expenses/domain/features/wallet.dart';
+import 'package:expenses/domain/features/transaction.dart';
 import 'package:expenses/presentation/screens/create_category.dart';
+import 'package:expenses/service/notification_realtime.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -23,6 +26,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _isSubmitting = false;
 
+  // Use cases
+  final _getCurrentUser = GetCurrentUser(DI.authRepository);
+
   @override
   void dispose() {
     _amountController.dispose();
@@ -37,6 +43,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       initialDate: _selectedDate,
       firstDate: DateTime(now.year - 3),
       lastDate: DateTime(now.year + 3),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.gray900,
+            ),
+            dialogBackgroundColor: Colors.white,
+          ),
+          child: child!,
+        );
+      },
     );
     if (result != null) {
       setState(() {
@@ -66,8 +86,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _selectedCategory == null) return;
 
-    final amountText = _amountController.text.replaceAll('.', '');
-    final amount = int.tryParse(amountText) ?? 0;
+    final amount = int.tryParse(_amountController.text) ?? 0;
     if (amount <= 0) return;
 
     setState(() {
@@ -75,15 +94,50 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     });
 
     try {
-      await TransactionService.createTransaction(
-        isExpense: _isExpense,
-        amount: amount,
+      final user = _getCurrentUser();
+      if (user == null) {
+        throw StateError('Chưa đăng nhập');
+      }
+
+      // Lấy hoặc tạo category
+      final getOrCreateCategory = GetOrCreateCategory(DI.categoryRepository, user.id);
+      final category = await getOrCreateCategory(
         categoryName: _selectedCategory!,
+        type: _isExpense ? 'EXPENSE' : 'INCOME',
+      );
+
+      // Lấy hoặc tạo wallet
+      final getOrCreateDefaultWallet = GetOrCreateDefaultWallet(DI.walletRepository, user.id);
+      final wallet = await getOrCreateDefaultWallet();
+
+      // Đọc số dư hiện tại và cập nhật
+      final currentBalance = wallet.balance;
+      final newBalance = _isExpense 
+          ? currentBalance - amount  // Chi tiêu: trừ đi
+          : currentBalance + amount; // Thu nhập: cộng vào
+      
+      // Cập nhật balance của wallet
+      await DI.walletRepository.updateWalletBalance(
+        walletId: wallet.id,
+        balance: newBalance,
+      );
+
+      // Tạo transaction
+      final createTransaction = CreateTransaction(DI.transactionRepository);
+      await createTransaction(
+        userId: user.id,
+        walletId: wallet.id,
+        categoryId: category.id,
+        type: _isExpense ? 'EXPENSE' : 'INCOME',
+        amount: amount,
+        note: _noteController.text.isEmpty ? '' : _noteController.text,
         occurredAt: _selectedDate,
-        note: _noteController.text.isEmpty ? null : _noteController.text,
       );
 
       if (!mounted) return;
+      
+      // Reload notifications ngay sau khi tạo transaction thành công
+      await NotificationRealtimeService.reloadNotifications();
       
       // Trả về true để báo hiệu đã thêm thành công
       Navigator.of(context).pop(true);
@@ -152,22 +206,54 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _amountController,
+                  decoration: InputDecoration(
+                    hintText: '0 đ',
+                    hintStyle: TextStyle(color: AppColors.gray400),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.lg,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.gray300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.gray300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.primary),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.only(left: AppSpacing.lg),
+                      child: Align(
+                        widthFactor: 1.0,
+                        child: Text(
+                          '\$',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.gray900,
+                          ),
+                        ),
+                      ),
+                    ),
+                    prefixIconConstraints: const BoxConstraints(
+                      minWidth: 30,
+                      minHeight: 0,
+                    ),
+                  ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    _ThousandSeparatorFormatter(),
                   ],
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.attach_money),
-                    suffixText: 'đ',
-                    hintText: '0 đ',
-                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Vui lòng nhập số tiền';
                     }
-                    final raw = value.replaceAll('.', '');
-                    final amount = int.tryParse(raw) ?? 0;
+                    final amount = int.tryParse(value) ?? 0;
                     if (amount <= 0) {
                       return 'Số tiền phải lớn hơn 0';
                     }
@@ -220,8 +306,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: _pickCategory,
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Tạo danh mục mới'),
+                    icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+                    label: const Text(
+                      'Tạo danh mục mới',
+                      style: TextStyle(color: AppColors.primary),
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
@@ -264,10 +353,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xl),
+                Text(
+                  'Ghi chú (tùy chọn)',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.gray700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
                 TextFormField(
                   controller: _noteController,
                   decoration: const InputDecoration(
-                    labelText: 'Ghi chú (tùy chọn)',
+                    hintText: 'Nhập ghi chú',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                    fillColor: Colors.white,
                   ),
                   maxLines: 2,
                 ),
@@ -276,14 +376,33 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: !_isSubmitting && isValid ? _submit : null,
-                    child: Text(_isSubmitting ? 'Đang lưu...' : 'Thêm giao dịch'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                      backgroundColor: isValid && !_isSubmitting
+                          ? AppColors.primary
+                          : AppColors.gray300,
+                      foregroundColor: isValid && !_isSubmitting
+                          ? AppColors.gray900
+                          : AppColors.gray500,
+                      disabledBackgroundColor: AppColors.gray300,
+                      disabledForegroundColor: AppColors.gray500,
+                    ),
+                    child: Text(
+                      _isSubmitting ? 'Đang lưu...' : 'Thêm giao dịch',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Center(
                   child: TextButton(
                     onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Thêm vào lúc khác'),
+                    child: const Text(
+                      'Thêm vào lúc khác',
+                      style: TextStyle(color: AppColors.primary),
+                    ),
                   ),
                 ),
               ],
@@ -395,7 +514,8 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
 
   Future<void> _loadUserCategories() async {
     try {
-      final user = SupabaseConfig.client.auth.currentUser;
+      final getCurrentUser = GetCurrentUser(DI.authRepository);
+      final user = getCurrentUser();
       if (user == null) {
         setState(() {
           _isLoadingCategories = false;
@@ -404,24 +524,25 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
       }
 
       // Load tất cả danh mục của user (cả EXPENSE và INCOME)
-      final categories = await CategoryService.getCategories();
+      final getCategories = GetCategories(DI.categoryRepository, user.id);
+      final categories = await getCategories();
 
       setState(() {
         _userCategories = categories.map((cat) {
           // Parse màu từ hex string
           Color? color;
           try {
-            final colorStr = (cat['color'] as String?) ?? '#6B7280';
+            final colorStr = cat.color ?? '#6B7280';
             color = Color(int.parse(colorStr.replaceAll('#', ''), radix: 16) + 0xFF000000);
           } catch (_) {
             color = AppColors.gray500;
           }
 
           return _CategoryItem(
-            name: cat['name'] as String,
-            icon: _getIconFromString(cat['icon'] as String?),
+            name: cat.name,
+            icon: _getIconFromString(cat.icon),
             color: color,
-            type: cat['type'] as String? ?? 'EXPENSE', // Lưu type để phân loại
+            type: cat.type, // Lưu type để phân loại
           );
         }).toList();
         _isLoadingCategories = false;
@@ -975,31 +1096,4 @@ class _CategoryItem {
     this.type = 'EXPENSE', // Mặc định là EXPENSE
   });
 }
-
-/// Format số nguyên sang chuỗi có dấu chấm ngăn cách hàng nghìn.
-class _ThousandSeparatorFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    var text = newValue.text.replaceAll('.', '');
-    if (text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-    final buffer = StringBuffer();
-    for (var i = 0; i < text.length; i++) {
-      final reversedIndex = text.length - i - 1;
-      buffer.write(text[i]);
-      final isThousand = reversedIndex % 3 == 0 && i != text.length - 1;
-      if (isThousand) buffer.write('.');
-    }
-    final newText = buffer.toString();
-    return TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
-    );
-  }
-}
-
 

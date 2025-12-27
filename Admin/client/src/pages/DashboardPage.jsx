@@ -51,7 +51,7 @@ const DashboardPage = () => {
               <StatCard
                 label="Tổng giá trị chi tiêu"
                 value={`${Intl.NumberFormat('vi-VN').format(overview.totalExpenses || 0)} đ`}
-                trend="+8%"
+                trend={overview.expenseTrend || '0%'}
                 icon={<AccountBalanceWalletIcon />}
               />
             </Grid>
@@ -59,7 +59,7 @@ const DashboardPage = () => {
               <StatCard
                 label="Số giao dịch"
                 value={overview.totalTransactions}
-                trend="+3%"
+                trend={overview.transactionTrend || '0%'}
                 icon={<TrendingUpIcon />}
                 color="info"
               />

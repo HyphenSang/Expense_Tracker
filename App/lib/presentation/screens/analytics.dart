@@ -1,154 +1,253 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/data/sample_data.dart';
-import 'package:expenses/service/expense_service.dart';
+import 'package:expenses/core/di/di.dart';
+import 'package:expenses/domain/features/expense.dart';
+import 'package:expenses/domain/repositories/expense.dart' as domain_expense;
+import 'package:expenses/service/expense.dart' show ExpenseService, SpendingTrendItem;
 
-/// Màn hình phân tích chi tiêu (Analytics).
-///
-/// Dùng lại các widget dashboard (6 hũ, giao dịch) nhưng trình bày
-/// theo góc nhìn phân tích: xu hướng, phân bổ, top categories.
-class AnalyticsScreen extends StatelessWidget {
+class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: FutureBuilder<(
-        ExpenseSummary,
-        List<CategorySpendingSummary>,
-        MonthlyComparison,
-        List<SpendingTrendItem>
-      )>(
-        future: _loadAnalytics(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
 
-          late ExpenseSummary summary;
-          late List<CategorySpendingSummary> categories;
-          late MonthlyComparison comparison;
-          late List<SpendingTrendItem> trends;
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  DateTime _selectedMonth = DateTime.now();
+  bool _isLoading = false;
+  String? _error;
+  domain_expense.ExpenseSummary? _summary;
+  List<domain_expense.CategorySpendingSummary>? _categories;
+  domain_expense.MonthlyComparison? _comparison;
+  List<SpendingTrendItem>? _trends;
 
-          if (snapshot.hasError || !snapshot.hasData) {
-            // Fallback dữ liệu mẫu nếu có lỗi khi gọi Supabase
-            summary = const ExpenseSummary(
-              totalBalance: SampleData.totalBalance,
-              monthlyIncome: SampleData.monthlyIncome,
-              monthlyExpense: SampleData.monthlyExpense,
-              monthlySaved: SampleData.monthlySaved,
-            );
-            categories = const [
-              CategorySpendingSummary(
-                name: 'Nhu cầu thiết yếu',
-                amount: 3500000,
-                percentage: 41.2,
-              ),
-              CategorySpendingSummary(
-                name: 'Giải trí',
-                amount: 2000000,
-                percentage: 23.5,
-              ),
-              CategorySpendingSummary(
-                name: 'Di chuyển',
-                amount: 1500000,
-                percentage: 17.6,
-              ),
-              CategorySpendingSummary(
-                name: 'Giáo dục',
-                amount: 1000000,
-                percentage: 11.8,
-              ),
-              CategorySpendingSummary(
-                name: 'Sức khỏe',
-                amount: 500000,
-                percentage: 5.9,
-              ),
-            ];
-            comparison = const MonthlyComparison(
-              previousMonthLabel: 'Tháng 11',
-              currentMonthLabel: 'Tháng 12',
-              previousIncome: '12.000.000 ₫',
-              previousExpense: '7.500.000 ₫',
-              currentIncome: '15.000.000 ₫',
-              currentExpense: '8.500.000 ₫',
-            );
-            trends = const [
-              SpendingTrendItem(
-                label: 'Tuần này',
-                amount: '2.500.000 ₫',
-                changePercent: '12.5%',
-                isIncrease: false,
-              ),
-              SpendingTrendItem(
-                label: 'Tháng này',
-                amount: '8.500.000 ₫',
-                changePercent: '8.3%',
-                isIncrease: false,
-              ),
-              SpendingTrendItem(
-                label: 'Năm này',
-                amount: '95.000.000 ₫',
-                changePercent: '15.2%',
-                isIncrease: true,
-              ),
-            ];
-          } else {
-            (summary, categories, comparison, trends) = snapshot.data!;
-          }
+  // Use cases
+  final _getSummary = GetExpenseSummary(DI.expenseRepository);
+  final _getCategoryData = GetCategoryData(DI.expenseRepository);
+  final _getAnalytics = GetAnalytics(DI.expenseRepository);
 
-          return ListView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.xl,
-              vertical: AppSpacing.lg,
-            ),
-            children: [
-              Text(
-                'Thống kê',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.gray900,
-                    ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Theo dõi thu nhập, chi tiêu và xu hướng tài chính của bạn.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.gray500,
-                    ),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              _IncomeExpenseRow(summary: summary),
-              const SizedBox(height: AppSpacing.xl),
-              _CategorySpendingCard(categories: categories),
-              const SizedBox(height: AppSpacing.xl),
-              _MonthlyComparisonCard(comparison: comparison),
-              const SizedBox(height: AppSpacing.xl),
-              _SpendingTrendCard(trends: trends),
-            ],
-          );
-        },
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalytics();
   }
 
-  Future<(
-    ExpenseSummary,
-    List<CategorySpendingSummary>,
-    MonthlyComparison,
-    List<SpendingTrendItem>
-  )> _loadAnalytics() async {
-    final summary = await ExpenseService.getSummary();
-    final categories = await ExpenseService.getCategorySpendingForCurrentMonth();
-    final comparison = await ExpenseService.getMonthlyComparison();
-    final trends = await ExpenseService.getSpendingTrends();
-    return (summary, categories, comparison, trends);
+  void _changeMonth(int delta) {
+    setState(() {
+      _selectedMonth = DateTime(
+        _selectedMonth.year,
+        _selectedMonth.month + delta,
+      );
+    });
+    _loadAnalytics();
+  }
+
+  Future<void> _loadAnalytics() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    
+    try {
+      final results = await Future.wait([
+        _getSummary.forMonth(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        _getCategoryData.getSpending(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        _getAnalytics.getMonthComparison(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+        _getAnalytics.getSpendingTrends(
+          year: _selectedMonth.year,
+          month: _selectedMonth.month,
+        ),
+      ]);
+
+      if (!mounted) return;
+
+      final summary = results[0] as domain_expense.ExpenseSummary;
+      final categories = results[1] as List<domain_expense.CategorySpendingSummary>;
+      final comparison = results[2] as domain_expense.MonthlyComparison;
+      final trends = results[3] as List<SpendingTrendItem>;
+
+      setState(() {
+        _summary = summary;
+        _categories = categories;
+        _comparison = comparison;
+        _trends = trends;
+        _isLoading = false;
+        _error = null;
+      });
+    } catch (e, stackTrace) {
+      if (!mounted) return;
+      
+      final errorMessage = 'Không thể tải thống kê: $e';
+      setState(() {
+        _error = errorMessage;
+        _isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      
+      // Log để debug
+      debugPrint('Analytics load error: $e');
+      debugPrint('Stack trace: $stackTrace');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Hiển thị lỗi nếu có
+    if (_error != null && _summary == null) {
+      return SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 64,
+                  color: AppColors.error,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'Không thể tải dữ liệu',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.gray900,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.gray600,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _error = null;
+                    });
+                    _loadAnalytics();
+                  },
+                  child: const Text('Thử lại'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Nếu chưa có dữ liệu và đang loading
+    if (_summary == null) {
+      return const SafeArea(
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final summary = _summary!;
+    final categories = _categories ?? [];
+    final comparison = _comparison;
+    final trends = _trends ?? [];
+
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.lg,
+        ),
+        children: [
+          Text(
+            'Thống kê',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gray900,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Theo dõi thu nhập, chi tiêu và xu hướng tài chính của bạn.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.gray500,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          
+          // Month selector - Luôn hiển thị
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: _isLoading ? null : () => _changeMonth(-1),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Tháng ${_selectedMonth.month}/${_selectedMonth.year}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _isLoading ? null : () => _changeMonth(1),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          
+          // Nội dung - Hiển thị loading ở dưới nếu đang load
+          if (_isLoading)
+            const SizedBox(
+              height: 200,
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else ...[
+            _IncomeExpenseRow(summary: summary),
+            const SizedBox(height: AppSpacing.xl),
+            if (categories.isNotEmpty) ...[
+              _CategorySpendingCard(categories: categories),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+            if (comparison != null) ...[
+              _MonthlyComparisonCard(comparison: comparison),
+              const SizedBox(height: AppSpacing.xl),
+            ],
+            if (trends.isNotEmpty) ...[
+              _SpendingTrendCard(trends: trends),
+            ],
+          ],
+        ],
+      ),
+    );
   }
 }
 
 /// Hàng trên cùng: Thu nhập / Chi tiêu (tháng hiện tại).
 class _IncomeExpenseRow extends StatelessWidget {
-  final ExpenseSummary summary;
+  final domain_expense.ExpenseSummary summary;
 
   const _IncomeExpenseRow({required this.summary});
 
@@ -238,7 +337,7 @@ class _SummaryCard extends StatelessWidget {
 
 /// Card "Chi tiêu theo danh mục".
 class _CategorySpendingCard extends StatelessWidget {
-  final List<CategorySpendingSummary> categories;
+  final List<domain_expense.CategorySpendingSummary> categories;
 
   const _CategorySpendingCard({required this.categories});
 
@@ -326,7 +425,7 @@ class _CategorySpendingCard extends StatelessWidget {
 
 /// Card so sánh tháng trước / tháng này.
 class _MonthlyComparisonCard extends StatelessWidget {
-  final MonthlyComparison comparison;
+  final domain_expense.MonthlyComparison comparison;
 
   const _MonthlyComparisonCard({required this.comparison});
 
@@ -523,61 +622,61 @@ class _SpendingTrendCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.lg),
           ...trends.map(
             (t) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      t.label,
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        t.label,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                              color: AppColors.gray800,
+                            ),
+                      ),
+                    ),
+                    Text(
+                      t.amount,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.gray800,
+                            color: AppColors.gray900,
+                            fontWeight: FontWeight.w600,
                           ),
                     ),
-                  ),
-                  Text(
-                    t.amount,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.gray900,
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                      vertical: AppSpacing.xs,
+                    const SizedBox(width: AppSpacing.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: t.isIncrease
+                            ? AppColors.success.withValues(alpha: 0.1)
+                            : AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            t.isIncrease
+                                ? Icons.arrow_upward_rounded
+                                : Icons.arrow_downward_rounded,
+                            size: 14,
+                            color: t.isIncrease ? AppColors.success : AppColors.error,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            t.changePercent,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                                  color: t.isIncrease
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: t.isIncrease
-                          ? AppColors.success.withValues(alpha: 0.1)
-                          : AppColors.error.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          t.isIncrease
-                              ? Icons.arrow_upward_rounded
-                              : Icons.arrow_downward_rounded,
-                          size: 14,
-                          color: t.isIncrease ? AppColors.success : AppColors.error,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          t.changePercent,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                                color: t.isIncrease
-                                    ? AppColors.success
-                                    : AppColors.error,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
           ),
         ],
       ),
