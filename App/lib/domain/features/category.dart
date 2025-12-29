@@ -28,7 +28,6 @@ class CreateCategory {
     required String type,
     String? icon,
     String? color,
-    String? categoryGroup,
     String? jarId,
   }) async {
     return await _repository.createCategory(
@@ -37,7 +36,6 @@ class CreateCategory {
       type: type,
       icon: icon,
       color: color,
-      categoryGroup: categoryGroup,
       jarId: jarId,
     );
   }
@@ -74,7 +72,6 @@ class UpdateCategory {
     String? type,
     String? icon,
     String? color,
-    String? categoryGroup,
     String? jarId,
   }) async {
     return await _repository.updateCategory(
@@ -83,7 +80,6 @@ class UpdateCategory {
       type: type,
       icon: icon,
       color: color,
-      categoryGroup: categoryGroup,
       jarId: jarId,
     );
   }

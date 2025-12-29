@@ -203,7 +203,6 @@ class SupabaseDataSource {
     required String type,
     String? icon,
     String? color,
-    String? categoryGroup,
     String? jarId,
   }) async {
     // Kiểm tra danh mục đã tồn tại chưa
@@ -233,7 +232,6 @@ class SupabaseDataSource {
           'type': type,
           'icon': iconValue, // Lưu icon hoặc NULL (không dùng default 'category')
           'color': color ?? '#6B7280',
-          'category_group': categoryGroup,
           'jar_id': jarId, // Liên kết với jar (bắt buộc cho EXPENSE)
           'is_system': false,
         })
@@ -272,7 +270,6 @@ class SupabaseDataSource {
     String? type,
     String? icon,
     String? color,
-    String? categoryGroup,
     String? jarId,
   }) async {
     final data = <String, dynamic>{};
@@ -284,7 +281,6 @@ class SupabaseDataSource {
       data['icon'] = null;
     }
     if (color != null) data['color'] = color;
-    if (categoryGroup != null) data['category_group'] = categoryGroup;
     if (jarId != null) {
       data['jar_id'] = jarId.isEmpty ? null : jarId;
     }

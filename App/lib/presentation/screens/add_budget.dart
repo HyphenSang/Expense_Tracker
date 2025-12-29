@@ -4,6 +4,7 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/domain/features/category.dart';
+import 'package:expenses/domain/features/jar.dart';
 import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/presentation/screens/budget_detail.dart';
 
@@ -1222,11 +1223,27 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
   String _searchQuery = '';
   List<_CategoryItem> _categories = [];
   bool _isLoading = true;
+  Map<String, String> _jarNames = {}; // Map jar_id -> jar_name
 
   @override
   void initState() {
     super.initState();
+    _loadJars();
     _loadCategories();
+  }
+
+  Future<void> _loadJars() async {
+    try {
+      final getJars = GetJars(DI.jarRepository, widget.userId);
+      final jars = await getJars();
+      setState(() {
+        _jarNames = {
+          for (var jar in jars) jar.id: jar.name,
+        };
+      });
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   @override
@@ -1263,7 +1280,7 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
               icon: _getIconFromString(cat.icon),
               color: color,
               type: cat.type,
-              categoryGroup: cat.categoryGroup,
+              jarId: cat.jarId,
             );
           })
           .toList();
@@ -1480,47 +1497,58 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
     return _categories.where((c) => c.type == 'EXPENSE').toList();
   }
 
-  List<_CategoryItem> _getGroupedCategories(String groupName) {
-    final all = _getExpenseCategories();
-    switch (groupName) {
-      case 'Chi tiêu - sinh hoạt':
-        return all.where((cat) {
-          final name = cat.name.toLowerCase();
-          return name.contains('chợ') ||
-              name.contains('siêu thị') ||
-              name.contains('ăn uống') ||
-              name.contains('di chuyển');
-        }).toList();
-      case 'Chi phí phát sinh':
-        return all.where((cat) {
-          final name = cat.name.toLowerCase();
-          return name.contains('mua sắm') ||
-              name.contains('giải trí') ||
-              name.contains('làm đẹp') ||
-              name.contains('sức khỏe') ||
-              name.contains('từ thiện');
-        }).toList();
-      case 'Chi phí cố định':
-        return all.where((cat) {
-          // Ưu tiên dùng categoryGroup từ database
-          if (cat.categoryGroup == 'fixed') return true;
-          // Fallback: dựa vào tên (backward compatibility)
-          final name = cat.name.toLowerCase();
-          return name.contains('hóa đơn') ||
-              name.contains('nhà cửa') ||
-              name.contains('người thân');
-        }).toList();
-      case 'Đầu tư - tiết kiệm':
-        return all.where((cat) {
-          // Ưu tiên dùng categoryGroup từ database
-          if (cat.categoryGroup == 'investment') return true;
-          // Fallback: dựa vào tên (backward compatibility)
-          final name = cat.name.toLowerCase();
-          return name.contains('đầu tư') || name.contains('học tập');
-        }).toList();
-      default:
-        return [];
+  /// Nhóm categories theo jar và trả về danh sách widgets
+  List<Widget> _buildCategoryGroupsByJar(List<_CategoryItem> categories) {
+    // Nhóm categories theo jar_id
+    final Map<String?, List<_CategoryItem>> groupedByJar = {};
+    for (final cat in categories) {
+      final jarId = cat.jarId;
+      if (!groupedByJar.containsKey(jarId)) {
+        groupedByJar[jarId] = [];
+      }
+      groupedByJar[jarId]!.add(cat);
     }
+
+    // Tạo danh sách widgets
+    final widgets = <Widget>[];
+    final jarIds = groupedByJar.keys.toList();
+    
+    // Sắp xếp: jar có tên trước, null sau
+    jarIds.sort((a, b) {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      final nameA = _jarNames[a] ?? '';
+      final nameB = _jarNames[b] ?? '';
+      return nameA.compareTo(nameB);
+    });
+
+    for (final jarId in jarIds) {
+      final jarCategories = groupedByJar[jarId]!;
+      if (jarCategories.isEmpty) continue;
+
+      final jarName = jarId != null 
+          ? (_jarNames[jarId] ?? 'Hũ không xác định')
+          : 'Chưa phân loại';
+      
+      widgets.add(
+        _CategoryGroup(
+          title: jarName,
+          icon: Icons.account_balance_wallet,
+          color: AppColors.primary,
+          items: jarCategories,
+          onTap: (category) {
+            Navigator.of(context).pop({
+              'id': category.id,
+              'name': category.name,
+            });
+          },
+        ),
+      );
+      widgets.add(const SizedBox(height: AppSpacing.lg));
+    }
+
+    return widgets;
   }
 
   @override
@@ -1630,120 +1658,17 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: AppSpacing.sm),
-                                // Nhóm "Chi tiêu - sinh hoạt"
-                                _CategoryGroup(
-                                  title: 'Chi tiêu - sinh hoạt',
-                                  icon: Icons.receipt_long,
-                                  color: AppColors.warning,
-                                  items: _getGroupedCategories('Chi tiêu - sinh hoạt'),
-                                  onTap: (category) {
-                                    Navigator.of(context).pop({
-                                      'id': category.id,
-                                      'name': category.name,
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
-                                // Nhóm "Chi phí phát sinh"
-                                _CategoryGroup(
-                                  title: 'Chi phí phát sinh',
-                                  icon: Icons.account_balance,
-                                  color: const Color(0xFFFFD54F),
-                                  items: _getGroupedCategories('Chi phí phát sinh'),
-                                  onTap: (category) {
-                                    Navigator.of(context).pop({
-                                      'id': category.id,
-                                      'name': category.name,
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
-                                // Nhóm "Chi phí cố định"
-                                _CategoryGroup(
-                                  title: 'Chi phí cố định',
-                                  icon: Icons.account_balance,
-                                  color: AppColors.info,
-                                  items: _getGroupedCategories('Chi phí cố định'),
-                                  onTap: (category) {
-                                    Navigator.of(context).pop({
-                                      'id': category.id,
-                                      'name': category.name,
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
-                                // Nhóm "Đầu tư - tiết kiệm"
-                                _CategoryGroup(
-                                  title: 'Đầu tư - tiết kiệm',
-                                  icon: Icons.account_balance_wallet,
-                                  color: AppColors.success,
-                                  items: _getGroupedCategories('Đầu tư - tiết kiệm'),
-                                  onTap: (category) {
-                                    Navigator.of(context).pop({
-                                      'id': category.id,
-                                      'name': category.name,
-                                    });
-                                  },
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
-                                // Các category khác
-                                if (filteredExpense.any((cat) {
-                                  final name = cat.name.toLowerCase();
-                                  return !name.contains('chợ') &&
-                                      !name.contains('siêu thị') &&
-                                      !name.contains('ăn uống') &&
-                                      !name.contains('di chuyển') &&
-                                      !name.contains('mua sắm') &&
-                                      !name.contains('giải trí') &&
-                                      !name.contains('làm đẹp') &&
-                                      !name.contains('sức khỏe') &&
-                                      !name.contains('từ thiện') &&
-                                      !name.contains('hóa đơn') &&
-                                      !name.contains('nhà cửa') &&
-                                      !name.contains('người thân') &&
-                                      !name.contains('đầu tư') &&
-                                      !name.contains('học tập');
-                                }))
-                                  _CategoryGroup(
-                                    title: 'Khác',
-                                    icon: Icons.category,
-                                    color: AppColors.gray500,
-                                    items: filteredExpense.where((cat) {
-                                      final name = cat.name.toLowerCase();
-                                      return !name.contains('chợ') &&
-                                          !name.contains('siêu thị') &&
-                                          !name.contains('ăn uống') &&
-                                          !name.contains('di chuyển') &&
-                                          !name.contains('mua sắm') &&
-                                          !name.contains('giải trí') &&
-                                          !name.contains('làm đẹp') &&
-                                          !name.contains('sức khỏe') &&
-                                          !name.contains('từ thiện') &&
-                                          !name.contains('hóa đơn') &&
-                                          !name.contains('nhà cửa') &&
-                                          !name.contains('người thân') &&
-                                          !name.contains('đầu tư') &&
-                                          !name.contains('học tập');
-                                    }).toList(),
-                                    onTap: (category) {
-                                      Navigator.of(context).pop({
-                                        'id': category.id,
-                                        'name': category.name,
-                                      });
-                                    },
-                                  ),
-                                const SizedBox(height: AppSpacing.lg),
+                                // Nhóm categories theo jar
+                                ..._buildCategoryGroupsByJar(filteredExpense),
                               ],
                             ),
                           );
-                        },
+                        }),
                       ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+                    ]),
+                  ),
+                ),
+              );
   }
 }
 
@@ -1753,7 +1678,7 @@ class _CategoryItem {
   final IconData icon;
   final Color color;
   final String type;
-  final String? categoryGroup; // 'living', 'incidental', 'fixed', 'investment'
+  final String? jarId; // ID của jar (bắt buộc cho EXPENSE)
 
   _CategoryItem({
     required this.id,
@@ -1761,7 +1686,7 @@ class _CategoryItem {
     required this.icon,
     required this.color,
     this.type = 'EXPENSE',
-    this.categoryGroup,
+    this.jarId,
   });
 }
 
@@ -1782,89 +1707,64 @@ class _CategoryGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+
     final theme = Theme.of(context);
-
-    if (items.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: AppSpacing.xs,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: AppColors.gray700,
+              ),
             ),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: Row(
-              children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  title,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w600,
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Wrap(
+          spacing: AppSpacing.md,
+          runSpacing: AppSpacing.md,
+          children: items.map((item) {
+            return GestureDetector(
+              onTap: () => onTap(item),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                decoration: BoxDecoration(
+                  color: item.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(
+                    color: item.color.withValues(alpha: 0.3),
+                    width: 1,
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.lg,
-            runSpacing: AppSpacing.lg,
-            children: items
-                .map(
-                  (item) => GestureDetector(
-                    onTap: () => onTap(item),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            color: item.color.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Icon(
-                            item.icon,
-                            color: item.color,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        SizedBox(
-                          width: 72,
-                          child: Text(
-                            item.name,
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.gray800,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(item.icon, color: item.color, size: 20),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      item.name,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.gray900,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                )
-                .toList(),
-          ),
-        ],
-      ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }

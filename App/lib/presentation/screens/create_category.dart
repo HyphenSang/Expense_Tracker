@@ -30,8 +30,7 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
   IconData _selectedIcon = Icons.category;
   Color _selectedColor = AppColors.gray500;
   final int _maxNameLength = 30;
-  String? _selectedGroup; // 'living', 'incidental', 'fixed', 'investment'
-  String? _selectedJarId; // Liên kết với jar (chủ yếu cho EXPENSE)
+  String? _selectedJarId; // Liên kết với jar (bắt buộc cho EXPENSE)
   List<Map<String, dynamic>> _jars = [];
   bool _isLoadingJars = false;
 
@@ -141,7 +140,6 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
           type: _isExpense ? 'EXPENSE' : 'INCOME',
           icon: iconName.isNotEmpty ? iconName : null,
           color: colorHex,
-          categoryGroup: _selectedGroup,
           jarId: _isExpense ? _selectedJarId : null,
         );
       } else {
@@ -153,7 +151,6 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
           type: _isExpense ? 'EXPENSE' : 'INCOME',
           icon: iconName.isNotEmpty ? iconName : null,
           color: colorHex,
-          categoryGroup: _selectedGroup,
           jarId: _isExpense ? _selectedJarId : null,
         );
       }
@@ -370,64 +367,6 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
                           },
                         ),
                   const SizedBox(height: AppSpacing.lg),
-                ],
-                
-                // Thuộc danh mục (Parent category) - tùy chọn
-                // Chỉ hiển thị cho EXPENSE
-                if (_isExpense) ...[
-                  Text(
-                    'Nhóm danh mục (tùy chọn)',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.gray700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  DropdownButtonFormField<String>(
-                    value: _selectedGroup,
-                    decoration: InputDecoration(
-                      hintText: 'Chọn',
-                      filled: true,
-                      fillColor: AppColors.gray100.withValues(alpha: 0.5), // Khung mờ
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        borderSide: BorderSide(color: AppColors.gray300),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        borderSide: BorderSide(color: AppColors.gray300),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        borderSide: BorderSide(color: AppColors.primary),
-                      ),
-                      suffixIcon: const Icon(Icons.chevron_right),
-                    ),
-                    dropdownColor: Colors.white,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'living',
-                        child: Text('Chi tiêu - sinh hoạt'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'incidental',
-                        child: Text('Chi phí phát sinh'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'fixed',
-                        child: Text('Chi phí cố định'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'investment',
-                        child: Text('Đầu tư - tiết kiệm'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedGroup = value;
-                      });
-                    },
-                  ),
                 ],
                 const SizedBox(height: AppSpacing.xl * 2),
                 

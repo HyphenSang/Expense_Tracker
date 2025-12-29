@@ -4,6 +4,7 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/domain/features/category.dart';
+import 'package:expenses/domain/features/jar.dart';
 import 'package:expenses/domain/features/wallet.dart';
 import 'package:expenses/domain/features/transaction.dart';
 import 'package:expenses/domain/entities/wallet.dart';
@@ -860,11 +861,31 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
   String _searchQuery = '';
   List<_CategoryItem> _userCategories = [];
   bool _isLoadingCategories = true;
+  Map<String, String> _jarNames = {}; // Map jar_id -> jar_name
 
   @override
   void initState() {
     super.initState();
+    _loadJars();
     _loadUserCategories();
+  }
+
+  Future<void> _loadJars() async {
+    try {
+      final getCurrentUser = GetCurrentUser(DI.authRepository);
+      final user = getCurrentUser();
+      if (user == null) return;
+
+      final getJars = GetJars(DI.jarRepository, user.id);
+      final jars = await getJars();
+      setState(() {
+        _jarNames = {
+          for (var jar in jars) jar.id: jar.name,
+        };
+      });
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   @override
@@ -899,15 +920,12 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
             color = AppColors.gray500;
           }
 
-          // Debug: In ra categoryGroup để kiểm tra
-          // print('Category: ${cat.name}, categoryGroup: ${cat.categoryGroup}');
-
           return _CategoryItem(
             name: cat.name,
             icon: _getIconFromString(cat.icon),
             color: color,
             type: cat.type, // Lưu type để phân loại
-            categoryGroup: cat.categoryGroup, // Lưu category group
+            jarId: cat.jarId, // Lưu jar_id
           );
         }).toList();
         _isLoadingCategories = false;
@@ -957,6 +975,54 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
     return categories.where((category) {
       return category.name.toLowerCase().contains(query);
     }).toList();
+  }
+
+  /// Nhóm categories theo jar và trả về danh sách widgets
+  List<Widget> _buildCategoryGroupsByJar(List<_CategoryItem> categories) {
+    // Nhóm categories theo jar_id
+    final Map<String?, List<_CategoryItem>> groupedByJar = {};
+    for (final cat in categories) {
+      final jarId = cat.jarId;
+      if (!groupedByJar.containsKey(jarId)) {
+        groupedByJar[jarId] = [];
+      }
+      groupedByJar[jarId]!.add(cat);
+    }
+
+    // Tạo danh sách widgets
+    final widgets = <Widget>[];
+    final jarIds = groupedByJar.keys.toList();
+    
+    // Sắp xếp: jar có tên trước, null sau
+    jarIds.sort((a, b) {
+      if (a == null && b == null) return 0;
+      if (a == null) return 1;
+      if (b == null) return -1;
+      final nameA = _jarNames[a] ?? '';
+      final nameB = _jarNames[b] ?? '';
+      return nameA.compareTo(nameB);
+    });
+
+    for (final jarId in jarIds) {
+      final jarCategories = groupedByJar[jarId]!;
+      if (jarCategories.isEmpty) continue;
+
+      final jarName = jarId != null 
+          ? (_jarNames[jarId] ?? 'Hũ không xác định')
+          : 'Chưa phân loại';
+      
+      widgets.add(
+        _CategoryGroup(
+          title: jarName,
+          icon: Icons.account_balance_wallet,
+          color: AppColors.primary,
+          items: jarCategories,
+        ),
+      );
+      widgets.add(const SizedBox(height: AppSpacing.lg));
+    }
+
+    return widgets;
   }
 
   List<_CategoryItem> _getExpenseCategories() {
@@ -1251,111 +1317,8 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                       children: [
                         const SizedBox(height: AppSpacing.sm),
                         if (widget.isExpense) ...[
-                          // Nhóm "Chi tiêu - sinh hoạt"
-                          _CategoryGroup(
-                            title: 'Chi tiêu - sinh hoạt',
-                            icon: Icons.receipt_long,
-                            color: AppColors.warning,
-                            items: filteredExpense.where((cat) {
-                              // Ưu tiên dùng categoryGroup từ database
-                              if (cat.categoryGroup == 'living') return true;
-                              // Fallback: dựa vào tên (backward compatibility)
-                              final name = cat.name.toLowerCase();
-                              return name.contains('chợ') ||
-                                  name.contains('siêu thị') ||
-                                  name.contains('ăn uống') ||
-                                  name.contains('di chuyển');
-                            }).toList(),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          // Nhóm "Chi phí phát sinh"
-                          _CategoryGroup(
-                            title: 'Chi phí phát sinh',
-                            icon: Icons.account_balance,
-                            color: const Color(0xFFFFD54F), // Vàng nhạt hơn, bớt chói
-                            items: filteredExpense.where((cat) {
-                              // Ưu tiên dùng categoryGroup từ database
-                              if (cat.categoryGroup == 'incidental') return true;
-                              // Fallback: dựa vào tên (backward compatibility)
-                              final name = cat.name.toLowerCase();
-                              return name.contains('mua sắm') ||
-                                  name.contains('giải trí') ||
-                                  name.contains('làm đẹp') ||
-                                  name.contains('sức khỏe') ||
-                                  name.contains('từ thiện');
-                            }).toList(),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          // Nhóm "Chi phí cố định"
-                          _CategoryGroup(
-                            title: 'Chi phí cố định',
-                            icon: Icons.account_balance,
-                            color: AppColors.info,
-                            items: filteredExpense.where((cat) {
-                              // Ưu tiên dùng categoryGroup từ database
-                              if (cat.categoryGroup == 'fixed') return true;
-                              // Fallback: dựa vào tên (backward compatibility)
-                              final name = cat.name.toLowerCase();
-                              return name.contains('hóa đơn') ||
-                                  name.contains('nhà cửa') ||
-                                  name.contains('người thân');
-                            }).toList(),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          // Nhóm "Đầu tư - tiết kiệm"
-                          _CategoryGroup(
-                            title: 'Đầu tư - tiết kiệm',
-                            icon: Icons.account_balance_wallet,
-                            color: AppColors.success,
-                            items: filteredExpense.where((cat) {
-                              // Ưu tiên dùng categoryGroup từ database
-                              if (cat.categoryGroup == 'investment') return true;
-                              // Fallback: dựa vào tên (backward compatibility)
-                              final name = cat.name.toLowerCase();
-                              return name.contains('đầu tư') ||
-                                  name.contains('học tập');
-                            }).toList(),
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          // Các category khác
-                          if (filteredExpense.any((cat) {
-                            // Không có categoryGroup hoặc không khớp với các nhóm trên
-                            return cat.categoryGroup == null || 
-                                (cat.categoryGroup != 'living' &&
-                                 cat.categoryGroup != 'incidental' &&
-                                 cat.categoryGroup != 'fixed' &&
-                                 cat.categoryGroup != 'investment');
-                          }))
-                            _CategoryGroup(
-                              title: 'Khác',
-                              icon: Icons.category,
-                              color: AppColors.gray500,
-                              items: filteredExpense.where((cat) {
-                                // Không có categoryGroup hoặc không khớp với các nhóm trên
-                                if (cat.categoryGroup == null) {
-                                  // Fallback: kiểm tra tên
-                                final name = cat.name.toLowerCase();
-                                return !name.contains('chợ') &&
-                                    !name.contains('siêu thị') &&
-                                    !name.contains('ăn uống') &&
-                                    !name.contains('di chuyển') &&
-                                    !name.contains('mua sắm') &&
-                                    !name.contains('giải trí') &&
-                                    !name.contains('làm đẹp') &&
-                                    !name.contains('sức khỏe') &&
-                                    !name.contains('từ thiện') &&
-                                    !name.contains('hóa đơn') &&
-                                    !name.contains('nhà cửa') &&
-                                    !name.contains('người thân') &&
-                                    !name.contains('đầu tư') &&
-                                    !name.contains('học tập');
-                                }
-                                return cat.categoryGroup != 'living' &&
-                                    cat.categoryGroup != 'incidental' &&
-                                    cat.categoryGroup != 'fixed' &&
-                                    cat.categoryGroup != 'investment';
-                              }).toList(),
-                            ),
+                          // Nhóm categories theo jar
+                          ..._buildCategoryGroupsByJar(filteredExpense),
                         ] else ...[
                           // Thu nhập - hiển thị đơn giản
                           if (filteredIncome.isNotEmpty)
@@ -1488,14 +1451,14 @@ class _CategoryItem {
   final IconData icon;
   final Color color;
   final String type; // 'EXPENSE' hoặc 'INCOME'
-  final String? categoryGroup; // 'living', 'incidental', 'fixed', 'investment'
+  final String? jarId; // ID của jar (bắt buộc cho EXPENSE)
 
   const _CategoryItem({
     required this.name,
     required this.icon,
     required this.color,
     this.type = 'EXPENSE', // Mặc định là EXPENSE
-    this.categoryGroup,
+    this.jarId,
   });
 }
 

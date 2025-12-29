@@ -39,7 +39,6 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
     required String type,
     String? icon,
     String? color,
-    String? categoryGroup,
     String? jarId,
   }) async {
     final category = await _dataSource.createCategory(
@@ -48,7 +47,6 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
       type: type,
       icon: icon,
       color: color,
-      categoryGroup: categoryGroup,
       jarId: jarId,
     );
     return CategoryModel.fromJson(category);
@@ -61,7 +59,6 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
     String? type,
     String? icon,
     String? color,
-    String? categoryGroup,
     String? jarId,
   }) async {
     final category = await _dataSource.updateCategory(
@@ -70,7 +67,6 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
       type: type,
       icon: icon,
       color: color,
-      categoryGroup: categoryGroup,
       jarId: jarId,
     );
     return CategoryModel.fromJson(category);

@@ -10,7 +10,6 @@ class CategoryModel extends CategoryEntity {
     super.icon,
     super.color,
     super.isSystem,
-    super.categoryGroup,
     super.jarId,
   });
 
@@ -23,7 +22,6 @@ class CategoryModel extends CategoryEntity {
       icon: json['icon'] as String?,
       color: json['color'] as String?,
       isSystem: (json['is_system'] as bool?) ?? false,
-      categoryGroup: json['category_group'] as String?,
       jarId: json['jar_id'] as String?,
     );
   }
@@ -37,7 +35,6 @@ class CategoryModel extends CategoryEntity {
       'icon': icon,
       'color': color,
       'is_system': isSystem,
-      'category_group': categoryGroup,
       'jar_id': jarId,
     };
   }

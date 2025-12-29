@@ -22,8 +22,7 @@ abstract class CategoryRepository {
     required String type,
     String? icon,
     String? color,
-    String? categoryGroup,
-    String? jarId, // Liên kết với jar (chủ yếu cho EXPENSE)
+    String? jarId, // Liên kết với jar (bắt buộc cho EXPENSE)
   });
 
   /// Cập nhật category
@@ -33,7 +32,6 @@ abstract class CategoryRepository {
     String? type,
     String? icon,
     String? color,
-    String? categoryGroup,
     String? jarId,
   });
 

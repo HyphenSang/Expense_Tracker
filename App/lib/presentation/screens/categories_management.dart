@@ -3,6 +3,7 @@ import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/domain/features/category.dart';
+import 'package:expenses/domain/features/jar.dart';
 import 'package:expenses/domain/entities/category.dart';
 import 'package:expenses/presentation/screens/create_category.dart';
 
@@ -18,11 +19,30 @@ class _CategoriesManagementScreenState extends State<CategoriesManagementScreen>
   Future<List<CategoryEntity>>? _categoriesFuture;
   String _selectedType = 'EXPENSE'; // 'EXPENSE' hoặc 'INCOME'
   final _getCurrentUser = GetCurrentUser(DI.authRepository);
+  Map<String, String> _jarNames = {}; // Map jar_id -> jar_name
 
   @override
   void initState() {
     super.initState();
+    _loadJars();
     _loadCategories();
+  }
+
+  Future<void> _loadJars() async {
+    final user = _getCurrentUser();
+    if (user == null) return;
+
+    try {
+      final getJars = GetJars(DI.jarRepository, user.id);
+      final jars = await getJars();
+      setState(() {
+        _jarNames = {
+          for (var jar in jars) jar.id: jar.name,
+        };
+      });
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   void _loadCategories() {
@@ -370,10 +390,10 @@ class _CategoriesManagementScreenState extends State<CategoriesManagementScreen>
                                           color: AppColors.gray900,
                                         ),
                                   ),
-                                  if (category.categoryGroup != null) ...[
+                                  if (category.type == 'EXPENSE' && category.jarId != null) ...[
                                     const SizedBox(height: AppSpacing.xs),
                                     Text(
-                                      _getCategoryGroupLabel(category.categoryGroup!),
+                                      _jarNames[category.jarId] ?? 'Hũ không xác định',
                                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                             color: AppColors.gray500,
                                           ),
@@ -427,19 +447,5 @@ class _CategoriesManagementScreenState extends State<CategoriesManagementScreen>
     );
   }
 
-  String _getCategoryGroupLabel(String group) {
-    switch (group) {
-      case 'living':
-        return 'Chi tiêu - sinh hoạt';
-      case 'incidental':
-        return 'Chi phí phát sinh';
-      case 'fixed':
-        return 'Chi phí cố định';
-      case 'investment':
-        return 'Đầu tư - tiết kiệm';
-      default:
-        return group;
-    }
-  }
 }
 
