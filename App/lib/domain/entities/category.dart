@@ -8,6 +8,7 @@ class CategoryEntity {
   final String? color;
   final bool isSystem;
   final String? categoryGroup; // 'living', 'incidental', 'fixed', 'investment'
+  final String? jarId; // Liên kết với jar (chủ yếu cho EXPENSE)
 
   const CategoryEntity({
     required this.id,
@@ -18,6 +19,7 @@ class CategoryEntity {
     this.color,
     this.isSystem = false,
     this.categoryGroup,
+    this.jarId,
   });
 }
 

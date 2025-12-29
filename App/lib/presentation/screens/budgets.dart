@@ -5,10 +5,11 @@ import 'package:expenses/presentation/screens/budget_detail.dart';
 import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/core/supabase_flutter.dart';
+import 'package:expenses/service/budget_checker.dart';
 
 /// Màn hình quản lý ngân sách (Budget).
 ///
-/// Hiển thị danh sách các ngân sách đã đặt cho danh mục hoặc hũ,
+/// Hiển thị danh sách các ngân sách đã đặt cho từng danh mục,
 /// cho phép tạo mới, xem chi tiết và quản lý ngân sách.
 class BudgetsScreen extends StatefulWidget {
   const BudgetsScreen({super.key});
@@ -18,7 +19,7 @@ class BudgetsScreen extends StatefulWidget {
 }
 
 class _BudgetsScreenState extends State<BudgetsScreen> {
-  int _selectedTab = 0; // 0: Tất cả, 1: Danh mục, 2: Hũ
+  int _selectedTimeTab = 0; // 0: Đang hoạt động, 1: Đã kết thúc
   List<Map<String, dynamic>> _allBudgets = [];
   bool _isLoading = true;
 
@@ -44,26 +45,23 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         return;
       }
 
-      // Load budgets từ Supabase
+      // Tự động pause các budgets strict mode đã vượt 100%
+      await BudgetCheckerService.autoPauseOverBudgetStrictBudgets(user.id);
+
+      // Load budgets từ Supabase - chỉ lấy budgets theo danh mục (có category_id, không có jar_id)
       final budgetsRes = await SupabaseConfig.client
           .from('budgets')
           .select('*')
           .eq('user_id', user.id)
           .eq('is_active', true)
+          .not('category_id', 'is', null)
           .order('created_at', ascending: false);
 
-      // Load categories và jars để lấy thông tin
+      // Load categories để lấy thông tin
       final categoriesRes = await SupabaseConfig.client
           .from('categories')
           .select('id, name, icon, color')
           .eq('user_id', user.id);
-
-      final jarsRes = await SupabaseConfig.client
-          .from('jars')
-          .select('id, name')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .order('created_at', ascending: true);
 
       final categories = Map<String, Map<String, dynamic>>.fromEntries(
         (categoriesRes as List).map((c) => MapEntry(
@@ -76,38 +74,14 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
         )),
       );
 
-      // Màu cho jars (giống như trong add_budget.dart và home screen)
-      final jarColors = <Color>[
-        AppColors.error,
-        AppColors.info,
-        AppColors.warning,
-        AppColors.primary,
-        AppColors.success,
-        AppColors.secondary,
-      ];
-
-      final jars = Map<String, Map<String, dynamic>>.fromEntries(
-        (jarsRes as List).asMap().entries.map((entry) {
-          final index = entry.key;
-          final j = entry.value;
-          return MapEntry(
-            j['id'] as String,
-            {
-              'name': j['name'] as String? ?? '',
-              'color': jarColors[index % jarColors.length],
-            },
-          );
-        }),
-      );
+      final now = DateTime.now();
 
       // Map budgets data
       final budgets = (budgetsRes as List).map((b) {
         final categoryId = b['category_id'] as String?;
-        final jarId = b['jar_id'] as String?;
         final category = categoryId != null ? categories[categoryId] : null;
-        final jar = jarId != null ? jars[jarId] : null;
 
-        // Parse color
+        // Parse color và icon
         Color? color;
         IconData? icon;
         String name = '';
@@ -138,31 +112,133 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             icon = Icons.category;
             color = AppColors.gray500;
           }
-        } else if (jar != null) {
-          name = jar['name'] as String;
-          color = jar['color'] as Color? ?? AppColors.primary;
-          icon = Icons.savings_outlined;
+        }
+
+        final startDate = b['start_date'] != null
+            ? DateTime.parse(b['start_date'] as String)
+            : null;
+        final endDate = b['end_date'] != null
+            ? DateTime.parse(b['end_date'] as String)
+            : null;
+        final limit = (b['limit_amount'] as num?)?.toDouble() ?? 0.0;
+        final spent = (b['spent_amount'] as num?)?.toDouble() ?? 0.0;
+
+        // Xác định trạng thái budget
+        bool isActive = false; // Đang diễn ra
+        bool isCompleted = false; // Đã hết thời gian
+        bool isSuccess = false; // Thành công (spent <= limit và đã hết thời gian)
+        bool isFailed = false; // Thất bại (spent > limit và đã hết thời gian)
+
+        // Kiểm tra cả startDate và endDate
+        if (startDate != null && endDate != null) {
+          // Có cả startDate và endDate
+          if (now.isBefore(startDate)) {
+            // Chưa bắt đầu
+            isActive = false;
+            isCompleted = false;
+          } else if (now.isAfter(endDate)) {
+            // Đã kết thúc
+            isCompleted = true;
+            isSuccess = spent <= limit;
+            isFailed = spent > limit;
+          } else {
+            // Đang diễn ra (now >= startDate && now <= endDate)
+            isActive = true;
+          }
+        } else if (startDate != null) {
+          // Chỉ có startDate
+          if (now.isBefore(startDate)) {
+            isActive = false;
+          } else {
+            isActive = true;
+          }
+        } else if (endDate != null) {
+          // Chỉ có endDate
+          if (now.isAfter(endDate)) {
+            isCompleted = true;
+            isSuccess = spent <= limit;
+            isFailed = spent > limit;
+          } else {
+            isActive = true;
+          }
+        } else {
+          // Không có startDate và endDate
+          isActive = true;
         }
 
         return {
           'id': b['id'] as String,
           'name': name,
-          'type': categoryId != null ? 'category' : 'jar',
           'categoryId': categoryId,
-          'jarId': jarId,
-          'limit': (b['limit_amount'] as num?)?.toDouble() ?? 0.0,
-          'spent': (b['spent_amount'] as num?)?.toDouble() ?? 0.0,
+          'categoryName': name, // Thêm categoryName để dùng khi edit
+          'limit': limit,
+          'spent': spent,
           'period': b['period'] as String? ?? 'MONTHLY',
           'startDate': b['start_date'] as String?,
           'endDate': b['end_date'] as String?,
           'isActive': b['is_active'] as bool? ?? true,
+          'createdAt': b['created_at'] as String?,
+          'budgetMode': b['budget_mode'] as String? ?? 'reminder', // Thêm budgetMode
+          'isPaused': b['is_paused'] as bool? ?? false, // Thêm isPaused
           'icon': icon ?? Icons.category,
           'color': color ?? AppColors.gray500,
+          'isActiveTime': isActive,
+          'isCompleted': isCompleted,
+          'isSuccess': isSuccess,
+          'isFailed': isFailed,
         };
       }).toList();
 
+      // Lọc để chỉ giữ lại 1 budget đang diễn ra cho mỗi category
+      // Nếu có nhiều budgets cùng category trong cùng thời gian, chọn budget mới nhất (created_at mới nhất)
+      final Map<String, Map<String, dynamic>> activeBudgetsByCategory = {};
+      final List<Map<String, dynamic>> completedBudgets = [];
+      
+      for (final budget in budgets) {
+        final categoryId = budget['categoryId'] as String?;
+        if (categoryId == null) continue;
+        
+        final isActiveTime = budget['isActiveTime'] as bool? ?? false;
+        final isCompleted = budget['isCompleted'] as bool? ?? false;
+        
+        if (isActiveTime) {
+          // Budget đang diễn ra - chỉ giữ 1 budget cho mỗi category
+          if (!activeBudgetsByCategory.containsKey(categoryId)) {
+            activeBudgetsByCategory[categoryId] = budget;
+          } else {
+            // Nếu đã có budget cho category này, so sánh created_at để chọn budget mới nhất
+            final existing = activeBudgetsByCategory[categoryId]!;
+            final existingCreatedAt = existing['createdAt'] as String?;
+            final currentCreatedAt = budget['createdAt'] as String?;
+            
+            // Ưu tiên budget có created_at mới hơn (tạo sau)
+            if (currentCreatedAt != null && existingCreatedAt != null) {
+              final currentCreated = DateTime.parse(currentCreatedAt);
+              final existingCreated = DateTime.parse(existingCreatedAt);
+              if (currentCreated.isAfter(existingCreated)) {
+                // Budget hiện tại được tạo sau -> chọn budget hiện tại
+                activeBudgetsByCategory[categoryId] = budget;
+              }
+            } else if (currentCreatedAt != null) {
+              // Budget hiện tại có created_at, budget cũ không có -> chọn budget hiện tại
+              activeBudgetsByCategory[categoryId] = budget;
+            }
+            // Nếu budget cũ có created_at và budget hiện tại không có, giữ nguyên budget cũ
+          }
+        } else if (isCompleted) {
+          // Budget đã kết thúc - giữ tất cả để hiển thị trong tab "Đã kết thúc"
+          completedBudgets.add(budget);
+        }
+      }
+      
+      // Kết hợp budgets đang diễn ra và đã kết thúc
+      final filteredBudgets = [
+        ...activeBudgetsByCategory.values,
+        ...completedBudgets,
+      ];
+
       setState(() {
-        _allBudgets = budgets;
+        _allBudgets = filteredBudgets;
         _isLoading = false;
       });
     } catch (e) {
@@ -291,11 +367,14 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
   }
 
   List<Map<String, dynamic>> get _filteredBudgets {
-    if (_selectedTab == 0) return _allBudgets;
-    if (_selectedTab == 1) {
-      return _allBudgets.where((b) => b['type'] == 'category').toList();
+    // Lọc theo tab thời gian
+    if (_selectedTimeTab == 0) {
+      // Đang hoạt động
+      return _allBudgets.where((b) => b['isActiveTime'] == true).toList();
+    } else {
+      // Đã kết thúc
+      return _allBudgets.where((b) => b['isCompleted'] == true).toList();
     }
-    return _allBudgets.where((b) => b['type'] == 'jar').toList();
   }
 
   @override
@@ -328,7 +407,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Theo dõi và quản lý ngân sách cho từng danh mục hoặc hũ tiết kiệm.',
+                    'Theo dõi và quản lý ngân sách cho từng danh mục chi tiêu.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppColors.gray500,
                         ),
@@ -337,7 +416,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
               ),
             ),
 
-            // Tabs
+            // Filter - Đang hoạt động / Đã kết thúc
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
               child: Container(
@@ -348,13 +427,10 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: _buildTabButton('Tất cả', 0),
+                      child: _buildTimeTabButton('Đang hoạt động', 0),
                     ),
                     Expanded(
-                      child: _buildTabButton('Danh mục', 1),
-                    ),
-                    Expanded(
-                      child: _buildTabButton('Hũ', 2),
+                      child: _buildTimeTabButton('Đã kết thúc', 1),
                     ),
                   ],
                 ),
@@ -428,12 +504,12 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
     );
   }
 
-  Widget _buildTabButton(String label, int index) {
-    final isSelected = _selectedTab == index;
+  Widget _buildTimeTabButton(String label, int index) {
+    final isSelected = _selectedTimeTab == index;
     return GestureDetector(
       onTap: () {
         setState(() {
-          _selectedTab = index;
+          _selectedTimeTab = index;
         });
       },
       child: Container(
@@ -468,11 +544,7 @@ class _BudgetsScreenState extends State<BudgetsScreen> {
             ),
             const SizedBox(height: AppSpacing.xl),
             Text(
-              _selectedTab == 0
-                  ? 'Chưa có ngân sách nào'
-                  : _selectedTab == 1
-                      ? 'Chưa có ngân sách theo danh mục'
-                      : 'Chưa có ngân sách theo hũ',
+              'Chưa có ngân sách nào',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: AppColors.gray700,
                     fontWeight: FontWeight.w600,
@@ -531,6 +603,7 @@ class _BudgetCard extends StatelessWidget {
     final progress = limit > 0 ? (spent / limit).clamp(0.0, 1.0) : 0.0;
     final isOverBudget = spent > limit;
     final remaining = (limit - spent).clamp(0, limit);
+    final isFailed = budget['isFailed'] == true; // Budget đã qua và thất bại
 
     return GestureDetector(
       onTap: onTap,
@@ -538,9 +611,16 @@ class _BudgetCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: AppSpacing.md),
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isFailed 
+              ? AppColors.error.withValues(alpha: 0.05) // Màu đỏ nhạt cho thất bại
+              : Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.md),
-          border: Border.all(color: AppColors.gray200),
+          border: Border.all(
+            color: isFailed 
+                ? AppColors.error.withValues(alpha: 0.3) // Viền đỏ nhạt cho thất bại
+                : AppColors.gray200,
+            width: isFailed ? 1.5 : 1,
+          ),
           boxShadow: AppShadows.cardShadow,
         ),
         child: Column(
@@ -582,17 +662,13 @@ class _BudgetCard extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: budget['type'] == 'category'
-                                  ? AppColors.primaryLight
-                                  : AppColors.info.withValues(alpha: 0.1),
+                              color: AppColors.primaryLight,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              budget['type'] == 'category' ? 'Danh mục' : 'Hũ',
+                              'Danh mục',
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: budget['type'] == 'category'
-                                        ? AppColors.gray900
-                                        : AppColors.info,
+                                    color: AppColors.gray900,
                                     fontWeight: FontWeight.w500,
                                     fontSize: 10,
                                   ),
@@ -606,6 +682,56 @@ class _BudgetCard extends StatelessWidget {
                                   fontSize: 11,
                                 ),
                           ),
+                          // Hiển thị trạng thái
+                          // Nếu budget đã bị pause (strict mode vượt 100%)
+                          if (budget['isPaused'] == true) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Đã tạm dừng',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppColors.warning,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 10,
+                                    ),
+                              ),
+                            ),
+                          ]
+                          // Nếu budget đã kết thúc
+                          else if (budget['isCompleted'] == true) ...[
+                            const SizedBox(width: AppSpacing.sm),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppSpacing.sm,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: (budget['isSuccess'] == true
+                                        ? AppColors.success
+                                        : AppColors.error)
+                                    .withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                budget['isSuccess'] == true ? 'Thành công' : 'Thất bại',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: budget['isSuccess'] == true
+                                          ? AppColors.success
+                                          : AppColors.error,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 10,
+                                    ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ],

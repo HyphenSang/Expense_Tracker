@@ -10,6 +10,8 @@ import 'package:expenses/presentation/screens/notifications.dart';
 import 'package:expenses/presentation/screens/personal_info.dart';
 import 'package:expenses/presentation/screens/security.dart';
 import 'package:expenses/presentation/screens/budgets.dart';
+import 'package:expenses/presentation/screens/jars_management.dart';
+import 'package:expenses/presentation/screens/categories_management.dart';
 import 'package:expenses/domain/features/preference.dart';
 
 /// Màn hình hồ sơ người dùng.
@@ -313,6 +315,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => const BudgetsScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildSettingTile(
+              icon: Icons.savings_outlined,
+              title: 'Hũ Tài Chính',
+              subtitle: 'Quản lý các hũ tài chính',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const JarsManagementScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildSettingTile(
+              icon: Icons.category_outlined,
+              title: 'Danh mục',
+              subtitle: 'Quản lý danh mục chi tiêu và thu nhập',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const CategoriesManagementScreen(),
                   ),
                 );
               },

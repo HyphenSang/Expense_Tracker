@@ -23,6 +23,18 @@ abstract class CategoryRepository {
     String? icon,
     String? color,
     String? categoryGroup,
+    String? jarId, // Liên kết với jar (chủ yếu cho EXPENSE)
+  });
+
+  /// Cập nhật category
+  Future<CategoryEntity> updateCategory({
+    required String categoryId,
+    String? name,
+    String? type,
+    String? icon,
+    String? color,
+    String? categoryGroup,
+    String? jarId,
   });
 
   /// Xóa category

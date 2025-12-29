@@ -5,7 +5,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import {
   Avatar,
   Box,
-  Divider,
   Drawer,
   IconButton,
   List,
@@ -31,44 +30,40 @@ const Sidebar = ({ open, onClose, drawerWidth, currentPath, variant = 'permanent
       '& .MuiDrawer-paper': {
         width: drawerWidth,
         boxSizing: 'border-box',
-        borderRight: 'none',
-        backgroundColor: '#111827', // gray900
-        color: '#fff',
-        p: 2,
+        borderRight: '1px solid #E5E7EB',
+        backgroundColor: '#fff',
+        color: '#111827',
+        p: 3,
+        position: 'relative',
       },
     }}
   >
-    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+    {/* Header */}
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Avatar
           sx={{
-            bgcolor: '#D2F273', // primary
-            color: '#111827', // gray900
+            bgcolor: '#D2F273',
+            color: '#111827',
             fontWeight: 700,
-            width: 48,
-            height: 48,
+            width: 40,
+            height: 40,
           }}
         >
           Ex
         </Avatar>
-        <div>
-          <Typography fontWeight={700} fontSize="1rem">
-            Expenses Admin
-          </Typography>
-          <Typography variant="body2" color="rgba(255,255,255,0.7)" fontSize="0.75rem">
-            Dashboard
-          </Typography>
-        </div>
+        <Typography fontWeight={700} fontSize="1.125rem">
+          Quản trị
+        </Typography>
       </Box>
       {onClose && variant === 'temporary' && (
-        <IconButton onClick={onClose} sx={{ color: '#fff', display: { lg: 'none' } }}>
+        <IconButton onClick={onClose} sx={{ color: '#111827' }}>
           <CloseIcon />
         </IconButton>
       )}
     </Box>
 
-    <Divider sx={{ borderColor: 'rgba(255,255,255,0.1)', mb: 2 }} />
-
+    {/* Navigation */}
     <List sx={{ flexGrow: 1 }}>
       {navItems.map((item) => (
         <ListItemButton
@@ -79,47 +74,36 @@ const Sidebar = ({ open, onClose, drawerWidth, currentPath, variant = 'permanent
           sx={{
             borderRadius: 2,
             mb: 1,
-            color: 'rgba(255,255,255,0.7)',
+            py: 1.5,
+            color: '#6B7280',
             '&.Mui-selected': {
-              backgroundColor: 'rgba(210, 242, 115, 0.15)',
-              color: '#D2F273',
+              backgroundColor: '#D2F273',
+              color: '#111827',
               '& .MuiListItemIcon-root': {
-                color: '#D2F273',
+                color: '#111827',
+              },
+              '&:hover': {
+                backgroundColor: '#D2F273',
               },
             },
             '&:hover': {
-              backgroundColor: 'rgba(255,255,255,0.08)',
+              backgroundColor: '#F5F5F5',
             },
           }}
         >
-          <ListItemIcon sx={{ color: currentPath === item.path ? '#D2F273' : 'rgba(255,255,255,0.7)', minWidth: 40 }}>
+          <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
             {item.icon}
           </ListItemIcon>
           <ListItemText
             primary={item.label}
             primaryTypographyProps={{
-              fontWeight: currentPath === item.path ? 600 : 400,
+              fontWeight: currentPath === item.path ? 600 : 500,
+              fontSize: '0.9375rem',
             }}
           />
         </ListItemButton>
       ))}
     </List>
-
-    <Box
-      sx={{
-        p: 2,
-        borderRadius: 3,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        border: '1px solid rgba(255,255,255,0.1)',
-      }}
-    >
-      <Typography variant="subtitle2" gutterBottom fontWeight={600}>
-        Trạng thái Supabase
-      </Typography>
-      <Typography variant="body2" color="rgba(255,255,255,0.7)" fontSize="0.75rem">
-        Đang kết nối tới cơ sở dữ liệu
-      </Typography>
-    </Box>
   </Drawer>
 );
 

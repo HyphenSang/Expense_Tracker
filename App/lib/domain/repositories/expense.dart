@@ -1,5 +1,5 @@
 import '../../presentation/widgets/recent_transactions.dart';
-import '../../data/sample_data.dart';
+import '../../presentation/widgets/jar_data.dart';
 import '../../service/expense.dart';
 import 'package:flutter/material.dart';
 

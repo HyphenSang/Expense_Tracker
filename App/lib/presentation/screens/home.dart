@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
-import 'package:expenses/data/sample_data.dart';
+import 'package:expenses/presentation/widgets/jar_data.dart';
 import 'package:expenses/presentation/screens/add_transaction.dart';
 import 'package:expenses/presentation/screens/profile.dart';
 import 'package:expenses/presentation/screens/wallets.dart';
 import 'package:expenses/presentation/screens/transactions_history.dart';
 import 'package:expenses/presentation/screens/all_transactions.dart';
 import 'package:expenses/presentation/screens/notifications.dart';
+import 'package:expenses/presentation/screens/jars_management.dart';
 import 'package:expenses/presentation/widgets/bot_nav.dart';
 import 'package:expenses/presentation/widgets/header.dart';
 import 'package:expenses/presentation/widgets/jars.dart';
@@ -102,16 +103,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // Đồng bộ jars với total balance trước khi load
-      final user = _getCurrentUser();
-      if (user != null) {
-        try {
-          await DI.jarRepository.redistributeJarsByTotalBalance(user.id);
-        } catch (e) {
-          print('Lỗi khi đồng bộ jars: $e');
-          // Không throw để không làm gián đoạn việc load dữ liệu
-        }
-      }
+      // Không gọi redistributeJarsByTotalBalance để tránh ảnh hưởng đến phân bổ đúng của các hũ
+      // Các hũ đã được phân bổ đúng khi tạo/xóa transaction
 
       // Chạy tất cả API calls song song để tăng tốc độ load
       final results = await Future.wait([
@@ -230,7 +223,13 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
           child: SixJarsSection(
-            onViewAll: () {},
+            onViewAll: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const JarsManagementScreen(),
+                ),
+              );
+            },
             jars: _jars ?? const [],
           ),
         ),

@@ -146,8 +146,22 @@ class SupabaseDataSource {
     await _client.from('jars').insert(jars);
   }
 
+  Future<Map<String, dynamic>> createJar(Map<String, dynamic> jar) async {
+    final result = await _client
+        .from('jars')
+        .insert(jar)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(result);
+  }
+
   Future<void> updateJar(String jarId, Map<String, dynamic> data) async {
     await _client.from('jars').update(data).eq('id', jarId);
+  }
+
+  Future<void> deleteJar(String jarId) async {
+    // Set is_active = false thay vì xóa thực sự
+    await _client.from('jars').update({'is_active': false}).eq('id', jarId);
   }
 
   // Category operations
@@ -190,6 +204,7 @@ class SupabaseDataSource {
     String? icon,
     String? color,
     String? categoryGroup,
+    String? jarId,
   }) async {
     // Kiểm tra danh mục đã tồn tại chưa
     final existing = await findCategory(
@@ -200,6 +215,11 @@ class SupabaseDataSource {
 
     if (existing != null) {
       throw StateError('Danh mục "$name" đã tồn tại cho loại ${type == 'EXPENSE' ? 'chi tiêu' : 'thu nhập'}.');
+    }
+
+    // Bắt buộc jarId cho EXPENSE
+    if (type == 'EXPENSE' && (jarId == null || jarId.isEmpty)) {
+      throw StateError('Danh mục chi tiêu phải được liên kết với một hũ tài chính.');
     }
 
     // Đảm bảo icon không phải empty string
@@ -214,7 +234,7 @@ class SupabaseDataSource {
           'icon': iconValue, // Lưu icon hoặc NULL (không dùng default 'category')
           'color': color ?? '#6B7280',
           'category_group': categoryGroup,
-          'jar_id': null, // Đảm bảo jar_id là NULL thay vì để database tự tạo UUID
+          'jar_id': jarId, // Liên kết với jar (bắt buộc cho EXPENSE)
           'is_system': false,
         })
         .select()
@@ -244,6 +264,64 @@ class SupabaseDataSource {
       name: categoryName,
       type: type,
     );
+  }
+
+  Future<Map<String, dynamic>> updateCategory({
+    required String categoryId,
+    String? name,
+    String? type,
+    String? icon,
+    String? color,
+    String? categoryGroup,
+    String? jarId,
+  }) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (type != null) data['type'] = type;
+    if (icon != null) {
+      data['icon'] = icon.isNotEmpty ? icon : null;
+    } else if (icon == '') {
+      data['icon'] = null;
+    }
+    if (color != null) data['color'] = color;
+    if (categoryGroup != null) data['category_group'] = categoryGroup;
+    if (jarId != null) {
+      data['jar_id'] = jarId.isEmpty ? null : jarId;
+    }
+
+    if (data.isEmpty) {
+      // Nếu không có gì để update, trả về category hiện tại
+      final result = await _client
+          .from('categories')
+          .select('*')
+          .eq('id', categoryId)
+          .single();
+      return Map<String, dynamic>.from(result);
+    }
+
+    // Bắt buộc jarId cho EXPENSE khi update
+    if (type == 'EXPENSE' || (type == null && data.containsKey('jar_id'))) {
+      final currentCategory = await _client
+          .from('categories')
+          .select('type, jar_id')
+          .eq('id', categoryId)
+          .single();
+      final currentType = currentCategory['type'] as String?;
+      final finalType = type ?? currentType;
+      final finalJarId = jarId ?? (currentCategory['jar_id'] as String?);
+      
+      if (finalType == 'EXPENSE' && (finalJarId == null || finalJarId.isEmpty)) {
+        throw StateError('Danh mục chi tiêu phải được liên kết với một hũ tài chính.');
+      }
+    }
+
+    final result = await _client
+        .from('categories')
+        .update(data)
+        .eq('id', categoryId)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(result);
   }
 
   Future<void> deleteCategory(String categoryId) async {
@@ -441,12 +519,22 @@ class SupabaseDataSource {
     required String budgetId,
     required Map<String, dynamic> data,
   }) async {
+    // Đảm bảo chỉ cập nhật các field được chỉ định
+    // Tạo một Map mới để tránh modify data gốc
+    final updateData = <String, dynamic>{};
+    
+    // Chỉ thêm các field có trong data vào updateData
+    for (final entry in data.entries) {
+      updateData[entry.key] = entry.value;
+    }
+    
+    // Luôn cập nhật updated_at
+    updateData['updated_at'] = DateTime.now().toIso8601String();
+    
+    // Chỉ update các field được chỉ định, không động đến các field khác
     await _client
         .from('budgets')
-        .update({
-          ...data,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
+        .update(updateData)
         .eq('id', budgetId);
   }
 

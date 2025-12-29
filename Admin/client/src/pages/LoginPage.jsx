@@ -96,16 +96,17 @@ const LoginPage = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: '#F5F5F5',
         p: 3,
       }}
     >
       <Container maxWidth="sm">
         <Paper
-          elevation={24}
+          elevation={0}
           sx={{
             p: 4,
-            borderRadius: 4,
+            borderRadius: 2,
+            border: '1px solid #E5E7EB',
             backgroundColor: '#fff',
           }}
         >
@@ -115,26 +116,26 @@ const LoginPage = () => {
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 64,
-                height: 64,
-                borderRadius: '50%',
-                backgroundColor: 'primary.main',
-                color: 'white',
+                width: 56,
+                height: 56,
+                borderRadius: 2,
+                backgroundColor: '#D2F273',
+                color: '#111827',
                 mb: 2,
               }}
             >
-              <LockIcon sx={{ fontSize: 32 }} />
+              <LockIcon sx={{ fontSize: 28 }} />
             </Box>
-            <Typography variant="h4" component="h1" fontWeight={700} color="text.primary" gutterBottom>
-              Đăng nhập Admin
+            <Typography variant="h5" component="h1" fontWeight={700} color="#111827" gutterBottom>
+              Đăng nhập
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Trang quản trị Expenses Tracker
+            <Typography variant="body2" color="#6B7280">
+              Trang quản trị
             </Typography>
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
               {error}
             </Alert>
           )}
@@ -146,7 +147,6 @@ const LoginPage = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              margin="normal"
               required
               disabled={isLoading}
               autoComplete="email"
@@ -154,7 +154,7 @@ const LoginPage = () => {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <EmailIcon color="action" />
+                    <EmailIcon sx={{ color: '#9CA3AF' }} />
                   </InputAdornment>
                 ),
               }}
@@ -166,14 +166,13 @@ const LoginPage = () => {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              margin="normal"
               required
               disabled={isLoading}
               autoComplete="current-password"
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <LockIcon color="action" />
+                    <LockIcon sx={{ color: '#9CA3AF' }} />
                   </InputAdornment>
                 ),
                 endAdornment: (
@@ -182,6 +181,7 @@ const LoginPage = () => {
                       onClick={() => setShowPassword(!showPassword)}
                       edge="end"
                       disabled={isLoading}
+                      sx={{ color: '#9CA3AF' }}
                     >
                       {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
                     </IconButton>
@@ -202,6 +202,11 @@ const LoginPage = () => {
                 textTransform: 'none',
                 fontSize: '1rem',
                 borderRadius: 2,
+                backgroundColor: '#D2F273',
+                color: '#111827',
+                '&:hover': {
+                  backgroundColor: '#B8D95A',
+                },
               }}
             >
               {isLoading ? (

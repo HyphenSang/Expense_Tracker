@@ -11,8 +11,7 @@ import 'package:expenses/domain/entities/wallet.dart';
 
 /// Màn hình ví & tài khoản thanh toán.
 ///
-/// Hiện sử dụng dữ liệu mẫu từ [SampleData] để minh hoạ UI,
-/// sau này có thể map với bảng `wallets` trong database.
+/// Sử dụng dữ liệu từ bảng `wallets` trong database.
 class WalletsScreen extends StatefulWidget {
   const WalletsScreen({super.key});
 

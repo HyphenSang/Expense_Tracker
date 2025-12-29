@@ -4,6 +4,9 @@ import 'package:expenses/core/di/di.dart';
 import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/presentation/screens/add_budget.dart';
+import 'package:expenses/service/budget_insight.dart';
+import 'package:expenses/service/budget_checker.dart';
+import 'package:expenses/presentation/widgets/budget_progress_card.dart';
 
 /// Màn hình chi tiết ngân sách.
 ///
@@ -24,20 +27,233 @@ class BudgetDetailScreen extends StatefulWidget {
 class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _transactions = [];
+  BudgetInsight? _insight;
+  Map<String, dynamic>? _currentBudget; // Lưu budget data hiện tại
   
   final _getCurrentUser = GetCurrentUser(DI.authRepository);
   
+  Map<String, dynamic> get _budget => _currentBudget ?? widget.budget;
+  
   bool get _isExpired {
-    final endDateStr = widget.budget['endDate'] as String?;
+    final endDateStr = _budget['endDate'] as String?;
     if (endDateStr == null) return false; // Không có end_date thì không hết hiệu lực
     final endDate = DateTime.parse(endDateStr);
     return DateTime.now().isAfter(endDate);
   }
 
+  bool get _isPaused {
+    return _budget['isPaused'] == true || _budget['is_paused'] == true;
+  }
+
   @override
   void initState() {
     super.initState();
+    _currentBudget = Map<String, dynamic>.from(widget.budget);
+    _checkAndAutoPauseBudget();
     _loadTransactions();
+    _loadInsight();
+  }
+
+  /// Kiểm tra và tự động pause budget nếu strict mode và đã vượt 100%
+  Future<void> _checkAndAutoPauseBudget() async {
+    try {
+      final user = _getCurrentUser();
+      if (user == null) return;
+
+      final budgetId = _budget['id'] as String;
+      final limit = _budget['limit'] as num;
+      final spent = _budget['spent'] as num;
+      final budgetMode = _budget['budgetMode'] as String? ?? 'reminder';
+
+      // Chỉ pause nếu strict mode và đã vượt 100%
+      if (budgetMode == 'strict' && spent >= limit) {
+        await BudgetCheckerService.autoPauseBudgetIfNeeded(
+          budgetId: budgetId,
+          spentAmount: spent,
+          limitAmount: limit,
+          mode: BudgetMode.strict,
+        );
+        // Reload budget để cập nhật is_paused
+        await _reloadBudget();
+      }
+    } catch (e) {
+      // Bỏ qua nếu lỗi
+    }
+  }
+
+  /// Reload budget data từ database
+  Future<void> _reloadBudget() async {
+    try {
+      final user = _getCurrentUser();
+      if (user == null) return;
+
+      final budgetId = _budget['id'] as String;
+      
+      // Load budget từ database
+      final budgetRes = await SupabaseConfig.client
+          .from('budgets')
+          .select('*')
+          .eq('id', budgetId)
+          .single();
+
+      // Load category
+      final categoryId = budgetRes['category_id'] as String?;
+      if (categoryId == null) return;
+
+      final categoryRes = await SupabaseConfig.client
+          .from('categories')
+          .select('name, icon, color')
+          .eq('id', categoryId)
+          .single();
+
+      // Parse color và icon
+      Color? color;
+      IconData? icon;
+      final categoryName = categoryRes['name'] as String? ?? '';
+      final categoryIcon = categoryRes['icon'] as String?;
+      final categoryColor = categoryRes['color'] as String?;
+
+      // Lấy default category nếu có
+      final defaultCategories = _getDefaultExpenseCategories();
+      final normalizedName = categoryName.toLowerCase().trim();
+      final defaultCategory = defaultCategories[normalizedName];
+
+      if (defaultCategory != null) {
+        icon = defaultCategory['icon'] as IconData;
+        color = defaultCategory['color'] as Color;
+      } else if (categoryIcon != null && categoryColor != null) {
+        try {
+          color = Color(
+            int.parse(categoryColor.replaceAll('#', ''), radix: 16) + 0xFF000000,
+          );
+        } catch (_) {
+          color = AppColors.gray500;
+        }
+        icon = _getIconFromString(categoryIcon);
+      } else {
+        icon = Icons.category;
+        color = AppColors.gray500;
+      }
+
+      final limit = (budgetRes['limit_amount'] as num?)?.toDouble() ?? 0.0;
+      final spent = (budgetRes['spent_amount'] as num?)?.toDouble() ?? 0.0;
+
+      // Cập nhật budget data
+      setState(() {
+        _currentBudget = {
+          'id': budgetRes['id'] as String,
+          'name': categoryName,
+          'categoryId': categoryId,
+          'categoryName': categoryName,
+          'limit': limit,
+          'spent': spent,
+          'period': budgetRes['period'] as String? ?? 'MONTHLY',
+          'startDate': budgetRes['start_date'] as String?,
+          'endDate': budgetRes['end_date'] as String?,
+          'budgetMode': budgetRes['budget_mode'] as String? ?? 'reminder',
+          'isPaused': budgetRes['is_paused'] as bool? ?? false,
+          'is_paused': budgetRes['is_paused'] as bool? ?? false, // Thêm cả key này để đảm bảo
+          'icon': icon ?? Icons.category,
+          'color': color ?? AppColors.gray500,
+        };
+      });
+
+      // Reload transactions và insight với data mới
+      _loadTransactions();
+      _loadInsight();
+    } catch (e) {
+      // Bỏ qua nếu lỗi
+    }
+  }
+
+  Map<String, Map<String, dynamic>> _getDefaultExpenseCategories() {
+    return {
+      'chợ, siêu thị': {
+        'icon': Icons.shopping_bag_outlined,
+        'color': const Color(0xFFFFB74D),
+      },
+      'ăn uống': {
+        'icon': Icons.restaurant_outlined,
+        'color': const Color(0xFFFFE651),
+      },
+      'di chuyển': {
+        'icon': Icons.directions_car_outlined,
+        'color': const Color(0xFF42A5F5),
+      },
+      'mua sắm': {
+        'icon': Icons.shopping_cart_outlined,
+        'color': const Color(0xFFEC407A),
+      },
+      'giải trí': {
+        'icon': Icons.card_giftcard_outlined,
+        'color': const Color(0xFFAB47BC),
+      },
+      'học tập': {
+        'icon': Icons.school_outlined,
+        'color': const Color(0xFF7E57C2),
+      },
+    };
+  }
+
+  IconData _getIconFromString(String? iconName) {
+    if (iconName == null || iconName.isEmpty) return Icons.category;
+    switch (iconName.toLowerCase()) {
+      case 'shopping_bag':
+      case 'shopping_bag_outlined':
+        return Icons.shopping_bag_outlined;
+      case 'restaurant':
+      case 'restaurant_outlined':
+        return Icons.restaurant_outlined;
+      case 'directions_car':
+      case 'directions_car_outlined':
+        return Icons.directions_car_outlined;
+      case 'shopping_cart':
+      case 'shopping_cart_outlined':
+        return Icons.shopping_cart_outlined;
+      case 'card_giftcard':
+      case 'card_giftcard_outlined':
+        return Icons.card_giftcard_outlined;
+      case 'school':
+      case 'school_outlined':
+        return Icons.school_outlined;
+      default:
+        return Icons.category;
+    }
+  }
+
+  Future<void> _loadInsight() async {
+    try {
+      final user = _getCurrentUser();
+      if (user == null) return;
+
+      final limit = _budget['limit'] as num;
+      final spent = _budget['spent'] as num;
+      final startDateStr = _budget['startDate'] as String;
+      final endDateStr = _budget['endDate'] as String?;
+      final period = _budget['period'] as String;
+      final budgetId = _budget['id'] as String? ?? '';
+
+      final startDate = DateTime.parse(startDateStr);
+      final endDate = endDateStr != null ? DateTime.parse(endDateStr) : null;
+
+      final insight = await BudgetInsightService.calculateInsight(
+        userId: user.id,
+        budgetId: budgetId,
+        limitAmount: limit,
+        spentAmount: spent,
+        startDate: startDate,
+        endDate: endDate,
+        period: period,
+      );
+
+      if (mounted) {
+        setState(() {
+          _insight = insight;
+        });
+      }
+    } catch (e) {
+      // Bỏ qua nếu lỗi
+    }
   }
 
   Future<void> _loadTransactions() async {
@@ -54,74 +270,41 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
         return;
       }
 
-      final startDateStr = widget.budget['startDate'] as String;
-      final endDateStr = widget.budget['endDate'] as String?;
+      final startDateStr = _budget['startDate'] as String;
+      final endDateStr = _budget['endDate'] as String?;
       final startDate = DateTime.parse(startDateStr);
       final endDate = endDateStr != null ? DateTime.parse(endDateStr) : DateTime.now();
 
-      // Parse dates để lấy đúng range (bao gồm cả ngày cuối)
+      // Lấy transactions trong khoảng thời gian hiệu lực của budget (từ startDate đến endDate)
+      // Đảm bảo logic nhất quán: chỉ lấy transactions trong khoảng thời gian budget có hiệu lực
       final startDateTime = DateTime(startDate.year, startDate.month, startDate.day);
       final endDateTime = endDateStr != null
-          ? DateTime(endDate.year, endDate.month, endDate.day).add(const Duration(days: 1))
+          ? DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59)
           : DateTime.now();
 
-      if (widget.budget['type'] == 'category') {
-        // Lấy transactions theo category_id
-        final categoryId = widget.budget['categoryId'] as String?;
-        if (categoryId != null) {
-          final transactions = await SupabaseConfig.client
-              .from('transactions')
-              .select('id, amount, note, occurred_at, type')
-              .eq('user_id', user.id)
-              .eq('category_id', categoryId)
-              .eq('type', 'EXPENSE')
-              .gte('occurred_at', startDateTime.toIso8601String())
-              .lt('occurred_at', endDateTime.toIso8601String())
-              .order('occurred_at', ascending: false);
+      // Lấy transactions theo category_id trong khoảng thời gian hiệu lực của budget
+      final categoryId = _budget['categoryId'] as String?;
+      if (categoryId != null) {
+        final transactions = await SupabaseConfig.client
+            .from('transactions')
+            .select('id, amount, note, occurred_at, type')
+            .eq('user_id', user.id)
+            .eq('category_id', categoryId)
+            .eq('type', 'EXPENSE')
+            .gte('occurred_at', startDateTime.toIso8601String())
+            .lte('occurred_at', endDateTime.toIso8601String())
+            .order('occurred_at', ascending: false);
 
-          _transactions = (transactions as List).map((tx) {
-            return {
-              'id': tx['id'] as String,
-              'amount': tx['amount'] as num,
-              'note': tx['note'] as String? ?? '',
-              'occurredAt': DateTime.parse(tx['occurred_at'] as String),
-            };
-          }).toList();
-        }
-      } else if (widget.budget['type'] == 'jar') {
-        // Lấy transactions từ jar_allocations
-        final jarId = widget.budget['jarId'] as String?;
-        if (jarId != null) {
-          // Lấy jar_allocations trong khoảng thời gian
-          final allocations = await SupabaseConfig.client
-              .from('jar_allocations')
-              .select('amount, transaction_id, transactions!inner(id, note, occurred_at, type)')
-              .eq('jar_id', jarId);
-
-          // Filter theo date range và lấy transactions
-          final filteredAllocations = (allocations as List).where((a) {
-            final transaction = a['transactions'] as Map<String, dynamic>?;
-            if (transaction == null) return false;
-            final occurredAtStr = transaction['occurred_at'] as String?;
-            if (occurredAtStr == null) return false;
-            final occurredAt = DateTime.parse(occurredAtStr);
-            return occurredAt.isAfter(startDateTime.subtract(const Duration(seconds: 1))) &&
-                occurredAt.isBefore(endDateTime);
-          }).toList();
-
-          _transactions = filteredAllocations.map((a) {
-            final transaction = a['transactions'] as Map<String, dynamic>;
-            return {
-              'id': transaction['id'] as String,
-              'amount': a['amount'] as num,
-              'note': transaction['note'] as String? ?? '',
-              'occurredAt': DateTime.parse(transaction['occurred_at'] as String),
-            };
-          }).toList();
-
-          // Sắp xếp theo thời gian giảm dần
-          _transactions.sort((a, b) => (b['occurredAt'] as DateTime).compareTo(a['occurredAt'] as DateTime));
-        }
+        _transactions = (transactions as List).map((tx) {
+          return {
+            'id': tx['id'] as String,
+            'amount': tx['amount'] as num,
+            'note': tx['note'] as String? ?? '',
+            'occurredAt': DateTime.parse(tx['occurred_at'] as String),
+          };
+        }).toList();
+      } else {
+        _transactions = [];
       }
     } catch (e) {
       // Nếu có lỗi, để danh sách rỗng
@@ -166,34 +349,52 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final limit = widget.budget['limit'] as num;
-    final spent = widget.budget['spent'] as num;
+    final limit = _budget['limit'] as num;
+    final spent = _budget['spent'] as num;
     final progress = limit > 0 ? (spent / limit).clamp(0.0, 1.0) : 0.0;
     final isOverBudget = spent > limit;
-    final remaining = (limit - spent).clamp(0, limit);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chi tiết ngân sách'),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () {
-              // TODO: Navigate to edit budget screen
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Chức năng chỉnh sửa sẽ được triển khai'),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () {
-              _showDeleteDialog();
-            },
-          ),
+          // Chỉ hiển thị nút chỉnh sửa và xóa khi budget chưa hết thời gian
+          if (!_isExpired) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () async {
+                // Format budget data để truyền vào AddBudgetScreen
+                final budgetData = {
+                  'id': _budget['id'] as String,
+                  'limit': _budget['limit'] as num,
+                  'categoryId': _budget['categoryId'] as String?,
+                  'categoryName': _budget['categoryName'] as String?,
+                  'period': _budget['period'] as String,
+                  'startDate': _budget['startDate'] as String,
+                  'endDate': _budget['endDate'] as String?,
+                  'budgetMode': _budget['budgetMode'] as String? ?? 'reminder',
+                };
+                
+                final result = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => AddBudgetScreen(budgetToEdit: budgetData),
+                  ),
+                );
+                
+                // Reload budget data nếu đã được cập nhật
+                if (result == true && mounted) {
+                  await _reloadBudget();
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () {
+                _showDeleteDialog();
+              },
+            ),
+          ],
         ],
       ),
       body: SafeArea(
@@ -203,6 +404,8 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
             children: [
               // Banner thông báo khi budget hết hiệu lực
               if (_isExpired) _buildExpiredBanner(),
+              // Banner thông báo khi budget bị tạm dừng
+              if (_isPaused && !_isExpired) _buildPausedBanner(),
               
               // Header section với icon và tên
               Container(
@@ -223,8 +426,8 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                             borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                           child: Icon(
-                            widget.budget['icon'] as IconData,
-                            color: widget.budget['color'] as Color,
+                            _budget['icon'] as IconData,
+                            color: _budget['color'] as Color,
                             size: 32,
                           ),
                         ),
@@ -234,7 +437,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                widget.budget['name'] as String,
+                                _budget['name'] as String,
                                 style: Theme.of(context)
                                     .textTheme
                                     .headlineSmall
@@ -252,24 +455,16 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: widget.budget['type'] == 'category'
-                                          ? AppColors.primaryLight
-                                          : AppColors.info
-                                              .withValues(alpha: 0.1),
+                                      color: AppColors.primaryLight,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
-                                      widget.budget['type'] == 'category'
-                                          ? 'Danh mục'
-                                          : 'Hũ',
+                                      'Danh mục',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: widget.budget['type'] ==
-                                                    'category'
-                                                ? AppColors.gray900
-                                                : AppColors.info,
+                                            color: AppColors.gray900,
                                             fontWeight: FontWeight.w500,
                                             fontSize: 11,
                                           ),
@@ -278,7 +473,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                                   const SizedBox(width: AppSpacing.sm),
                                   Text(
                                     _getPeriodLabel(
-                                        widget.budget['period'] as String),
+                                        _budget['period'] as String),
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall
@@ -296,112 +491,90 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     
-                    // Progress section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Đã chi',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        color: AppColors.gray600,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatCurrency(spent),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: isOverBudget
-                                            ? AppColors.error
-                                            : AppColors.gray900,
-                                      ),
-                                ),
-                              ],
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  'Giới hạn',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        color: AppColors.gray600,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatCurrency(limit),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.gray900,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                        ClipRRect(
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.progressBar),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 12,
-                            backgroundColor: AppColors.gray200,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              isOverBudget ? AppColors.error : AppColors.primary,
+                    // Progress section với insights
+                    if (_insight != null)
+                      BudgetProgressCard(
+                        insight: _insight!,
+                        categoryName: _budget['name'] as String?,
+                        jarName: null,
+                      )
+                    else
+                      // Fallback nếu chưa load được insight
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Đã chi',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: AppColors.gray600,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatCurrency(spent),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: isOverBudget
+                                              ? AppColors.error
+                                              : AppColors.gray900,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    'Giới hạn',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
+                                          color: AppColors.gray600,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatCurrency(limit),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .headlineMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.gray900,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+                          ClipRRect(
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.progressBar),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 12,
+                              backgroundColor: AppColors.gray200,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isOverBudget ? AppColors.error : AppColors.primary,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              isOverBudget
-                                  ? 'Vượt ngân sách: ${_formatCurrency(spent - limit)}'
-                                  : 'Còn lại: ${_formatCurrency(remaining)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    color: isOverBudget
-                                        ? AppColors.error
-                                        : AppColors.success,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            Text(
-                              '${(progress * 100).toStringAsFixed(0)}%',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.gray900,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -600,20 +773,18 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Hiển thị note nếu có
-                if (note.isNotEmpty) ...[
-                  Text(
-                    note,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.gray900,
-                        ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                ],
-                // Hiển thị ngày giờ
+                // Hiển thị tên giao dịch (ghi chú) - luôn hiển thị, trên ngày
+                Text(
+                  note.isNotEmpty ? note : 'Không có ghi chú',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: note.isNotEmpty ? AppColors.gray900 : AppColors.gray400,
+                      ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                // Hiển thị ngày giờ - dưới tên giao dịch
                 Text(
                   _formatDateTime(occurredAt),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -629,6 +800,124 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                   fontWeight: FontWeight.w600,
                   color: AppColors.error,
                 ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPausedBanner() {
+    final budgetMode = _budget['budgetMode'] as String? ?? 'reminder';
+    final limit = _budget['limit'] as num;
+    final spent = _budget['spent'] as num;
+    final isOverBudget = spent >= limit;
+    
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(AppSpacing.xl),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.warning.withValues(alpha: 0.2),
+            AppColors.warning.withValues(alpha: 0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: AppColors.warning,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.warning,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: const Icon(
+                  Icons.pause_circle_outline,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '⏸️ Ngân sách đã tạm dừng',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.warning,
+                          ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      budgetMode == 'strict' && isOverBudget
+                          ? 'Ngân sách đã vượt 100% ở chế độ nghiêm ngặt. Bạn vẫn có thể xem, chỉnh sửa hoặc tiếp tục ngân sách này.'
+                          : 'Ngân sách này đã được tạm dừng. Bạn vẫn có thể xem, chỉnh sửa hoặc tiếp tục ngân sách này.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.gray700,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ElevatedButton.icon(
+            onPressed: () async {
+              try {
+                final budgetId = _budget['id'] as String;
+                
+                // Unpause budget
+                await BudgetCheckerService.unpauseBudget(budgetId);
+                
+                if (!mounted) return;
+                
+                // Reload budget để cập nhật trạng thái từ database
+                await _reloadBudget();
+                
+                if (!mounted) return;
+                
+                // Hiển thị thông báo thành công
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã tiếp tục ngân sách'),
+                    backgroundColor: AppColors.success,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Lỗi khi tiếp tục ngân sách: ${e.toString()}'),
+                    backgroundColor: AppColors.error,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Tiếp tục ngân sách'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.md,
+              ),
+            ),
           ),
         ],
       ),

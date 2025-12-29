@@ -12,12 +12,12 @@ const UsersPage = () => {
   }, [refresh]);
 
   return (
-    <Box>
-      <Typography variant="h5" fontWeight={700} gutterBottom mb={2}>
+    <Box sx={{ width: '100%' }}>
+      <Typography variant="h6" fontWeight={600} gutterBottom mb={4} fontSize="1.25rem">
         Quản lý người dùng
       </Typography>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
           {error}
         </Alert>
       )}

@@ -16,6 +16,12 @@ class JarRepositoryImpl implements domain.JarRepository {
   }
 
   @override
+  Future<List<JarEntity>> getAllJars(String userId) async {
+    final data = await _dataSource.getAllJars(userId);
+    return data.map((json) => JarModel.fromJson(json).toEntity()).toList();
+  }
+
+  @override
   Future<void> ensureDefaultJars(String userId) async {
     final existing = await _dataSource.getJars(userId);
     if (existing.isNotEmpty) return;
@@ -102,6 +108,65 @@ class JarRepositoryImpl implements domain.JarRepository {
     required double balance,
   }) async {
     await _dataSource.updateJar(jarId, {'balance': balance.round()});
+  }
+
+  @override
+  Future<JarEntity> createJar({
+    required String userId,
+    required String name,
+    required String slug,
+    required int percentage,
+    String? icon,
+    String? color,
+    String? description,
+    double? targetAmount,
+  }) async {
+    final jarData = {
+      'user_id': userId,
+      'name': name,
+      'slug': slug,
+      'percentage': percentage,
+      'icon': icon,
+      'color': color ?? '#6B7280',
+      'description': description,
+      'target_amount': targetAmount,
+      'balance': 0,
+      'is_active': true,
+    };
+    final result = await _dataSource.createJar(jarData);
+    return JarModel.fromJson(result).toEntity();
+  }
+
+  @override
+  Future<void> updateJar({
+    required String jarId,
+    String? name,
+    String? slug,
+    int? percentage,
+    String? icon,
+    String? color,
+    String? description,
+    double? targetAmount,
+    bool? isActive,
+  }) async {
+    final data = <String, dynamic>{};
+    if (name != null) data['name'] = name;
+    if (slug != null) data['slug'] = slug;
+    if (percentage != null) data['percentage'] = percentage;
+    if (icon != null) data['icon'] = icon;
+    if (color != null) data['color'] = color;
+    if (description != null) data['description'] = description;
+    if (targetAmount != null) data['target_amount'] = targetAmount;
+    if (isActive != null) data['is_active'] = isActive;
+
+    if (data.isNotEmpty) {
+      await _dataSource.updateJar(jarId, data);
+    }
+  }
+
+  @override
+  Future<void> deleteJar(String jarId) async {
+    await _dataSource.deleteJar(jarId);
   }
 
   @override

@@ -4,6 +4,7 @@ import '../../domain/repositories/wallet.dart' as wallet_domain;
 import '../../domain/repositories/jar.dart' as jar_domain;
 import '../datasources/supabase.dart';
 import '../models/transaction.dart';
+import '../../core/supabase_flutter.dart';
 
 /// Implementation của TransactionRepository
 class TransactionRepositoryImpl implements domain.TransactionRepository {
@@ -102,12 +103,26 @@ class TransactionRepositoryImpl implements domain.TransactionRepository {
       balance: newBalance,
     );
 
-    // Chia lại các hũ theo % dựa trên total balance mới
-    try {
-      await _jarRepository.redistributeJarsByTotalBalance(userId);
-    } catch (e) {
-      // Log lỗi nhưng không throw để không làm gián đoạn việc tạo transaction
-      // Lỗi được xử lý im lặng để không ảnh hưởng đến flow chính
+    final transactionId = result['id'] as String;
+
+    if (type == 'INCOME') {
+      try {
+        await _allocateIncomeToJars(
+          userId: userId,
+          transactionId: transactionId,
+          incomeAmount: amount,
+        );
+      } catch (e) {}
+    } else {
+      // Nếu là CHI TIÊU: Trừ tiền từ hũ tương ứng với danh mục
+      try {
+        await _deductExpenseFromJar(
+          userId: userId,
+          transactionId: transactionId,
+          categoryId: categoryId,
+          expenseAmount: amount,
+        );
+      } catch (e) {}
     }
 
     // Cập nhật spent_amount của budgets nếu là chi tiêu
@@ -121,7 +136,6 @@ class TransactionRepositoryImpl implements domain.TransactionRepository {
         );
 
         // Cập nhật budget theo jar (nếu có jar_allocations)
-        final transactionId = result['id'] as String;
         await _updateBudgetSpentAmountByJar(
           userId: userId,
           transactionId: transactionId,
@@ -174,8 +188,15 @@ class TransactionRepositoryImpl implements domain.TransactionRepository {
       balance: newBalance,
     );
 
-    // Chia lại các hũ theo % dựa trên total balance mới
-    await _jarRepository.redistributeJarsByTotalBalance(user.id);
+    // Rollback jar_allocations thay vì redistribute để tránh ảnh hưởng đến các hũ khác
+    try {
+      await _rollbackJarAllocations(
+        transactionId: transactionId,
+        type: type,
+      );
+    } catch (e) {
+      // Log lỗi nhưng không throw
+    }
 
     // Cập nhật spent_amount của budgets nếu là chi tiêu đã xóa
     final categoryId = transactionData['category_id'] as String?;
@@ -239,10 +260,29 @@ class TransactionRepositoryImpl implements domain.TransactionRepository {
       );
 
       // Cập nhật spent_amount trong database
+      // CHỈ cập nhật spent_amount, KHÔNG động đến limit_amount
       await _dataSource.updateBudget(
         budgetId: budgetId,
-        data: {'spent_amount': spentAmount},
+        data: {
+          'spent_amount': spentAmount,
+          // Đảm bảo KHÔNG cập nhật limit_amount
+        },
       );
+
+      // Tự động pause budget nếu strict mode và đã vượt 100%
+      final budgetMode = budget['budget_mode'] as String?;
+      if (budgetMode == 'strict' && spentAmount >= (budget['limit_amount'] as num? ?? 0)) {
+        try {
+          await _dataSource.updateBudget(
+            budgetId: budgetId,
+            data: {
+              'is_paused': true,
+            },
+          );
+        } catch (e) {
+          // Bỏ qua nếu lỗi
+        }
+      }
     }
   }
 
@@ -354,6 +394,21 @@ class TransactionRepositoryImpl implements domain.TransactionRepository {
           budgetId: budgetId,
           data: {'spent_amount': spentAmount},
         );
+
+        // Tự động pause budget nếu strict mode và đã vượt 100%
+        final budgetMode = budget['budget_mode'] as String?;
+        if (budgetMode == 'strict' && spentAmount >= (budget['limit_amount'] as num? ?? 0)) {
+          try {
+            await _dataSource.updateBudget(
+              budgetId: budgetId,
+              data: {
+                'is_paused': true,
+              },
+            );
+          } catch (e) {
+            // Bỏ qua nếu lỗi
+          }
+        }
       }
     }
   }
@@ -412,6 +467,226 @@ class TransactionRepositoryImpl implements domain.TransactionRepository {
     }
 
     return totalSpent;
+  }
+
+  Future<void> _allocateIncomeToJars({
+    required String userId,
+    required String transactionId,
+    required num incomeAmount,
+  }) async {
+    final client = SupabaseConfig.client;
+
+    await _jarRepository.ensureDefaultJars(userId);
+
+    final jars = await _dataSource.getJars(userId);
+
+    if (jars.isEmpty) {
+      return;
+    }
+
+    final allocations = <Map<String, dynamic>>[];
+    final jarUpdates = <String, num>{};
+
+    for (final jar in jars) {
+      final jarId = jar['id'] as String;
+      final percentage = (jar['percentage'] as num?) ?? 0;
+      final currentBalance = (jar['balance'] as num?) ?? 0;
+
+      final allocatedAmount = (incomeAmount * percentage / 100).round();
+
+      if (allocatedAmount > 0) {
+        allocations.add({
+          'jar_id': jarId,
+          'transaction_id': transactionId,
+          'amount': allocatedAmount,
+        });
+
+        jarUpdates[jarId] = currentBalance + allocatedAmount;
+      }
+    }
+
+    if (allocations.isNotEmpty) {
+      await client.from('jar_allocations').insert(allocations);
+    }
+
+    for (final entry in jarUpdates.entries) {
+      await _jarRepository.updateJarBalance(
+        jarId: entry.key,
+        balance: entry.value.toDouble(),
+      );
+    }
+  }
+
+  /// Trừ tiền từ hũ tương ứng khi chi tiêu.
+  /// Sử dụng category.jar_id nếu có, nếu không thì fallback về mapping dựa trên tên.
+  Future<void> _deductExpenseFromJar({
+    required String userId,
+    required String transactionId,
+    required String categoryId,
+    required num expenseAmount,
+  }) async {
+    final client = SupabaseConfig.client;
+
+    // Lấy thông tin category (bao gồm jar_id và name)
+    final category = await client
+        .from('categories')
+        .select('jar_id, name')
+        .eq('id', categoryId)
+        .maybeSingle();
+
+    if (category == null) return;
+
+    // Lấy danh sách các hũ đang hoạt động
+    final jars = await _dataSource.getJars(userId);
+
+    if (jars.isEmpty) {
+      return;
+    }
+
+    // Xác định hũ tương ứng
+    String? targetJarId;
+
+    // Ưu tiên 1: Sử dụng jar_id từ category nếu có
+    final categoryJarId = category['jar_id'] as String?;
+    if (categoryJarId != null) {
+      // Kiểm tra jar có tồn tại và đang hoạt động không
+      final jarExists = jars.any((jar) => jar['id'] == categoryJarId);
+      if (jarExists) {
+        targetJarId = categoryJarId;
+      }
+    }
+
+    // Ưu tiên 2: Nếu không có jar_id, fallback về mapping dựa trên tên danh mục
+    if (targetJarId == null) {
+      final categoryName = (category['name'] as String?) ?? '';
+      final categoryLower = categoryName.toLowerCase();
+
+      String? targetJarSlug;
+      if (categoryLower.contains('chợ') ||
+          categoryLower.contains('siêu thị') ||
+          categoryLower.contains('ăn uống') ||
+          categoryLower.contains('ăn') ||
+          categoryLower.contains('di chuyển') ||
+          categoryLower.contains('xăng') ||
+          categoryLower.contains('sức khỏe') ||
+          categoryLower.contains('y tế')) {
+        targetJarSlug = 'necessities';
+      } else if (categoryLower.contains('giáo dục') ||
+          categoryLower.contains('học') ||
+          categoryLower.contains('sách')) {
+        targetJarSlug = 'education';
+      } else if (categoryLower.contains('mua sắm') ||
+          categoryLower.contains('giải trí') ||
+          categoryLower.contains('làm đẹp') ||
+          categoryLower.contains('du lịch')) {
+        targetJarSlug = 'play';
+      } else if (categoryLower.contains('từ thiện') ||
+          categoryLower.contains('cho đi') ||
+          categoryLower.contains('quyên góp')) {
+        targetJarSlug = 'give';
+      }
+
+      // Tìm hũ tương ứng theo slug
+      if (targetJarSlug != null) {
+        for (final jar in jars) {
+          final slug = (jar['slug'] as String?) ?? '';
+          if (slug == targetJarSlug) {
+            targetJarId = jar['id'] as String;
+            break;
+          }
+        }
+      }
+    }
+
+    // Ưu tiên 3: Nếu vẫn không tìm thấy, mặc định trừ từ "Nhu cầu thiết yếu"
+    if (targetJarId == null) {
+      for (final jar in jars) {
+        final slug = (jar['slug'] as String?) ?? '';
+        if (slug == 'necessities' || slug.contains('nhu cầu')) {
+          targetJarId = jar['id'] as String;
+          break;
+        }
+      }
+    }
+
+    // Ưu tiên 4: Nếu vẫn không tìm thấy, lấy hũ đầu tiên
+    if (targetJarId == null && jars.isNotEmpty) {
+      targetJarId = jars[0]['id'] as String;
+    }
+
+    if (targetJarId == null) return;
+
+    // Lấy số dư hiện tại của hũ
+    final jar = jars.firstWhere(
+      (j) => j['id'] == targetJarId,
+      orElse: () => jars[0],
+    );
+    final currentBalance = (jar['balance'] as num?) ?? 0;
+
+    // Tính số dư mới (trừ đi số tiền chi tiêu)
+    final newBalance = (currentBalance - expenseAmount).clamp(0, double.infinity);
+
+    // Cập nhật số dư hũ
+    await _jarRepository.updateJarBalance(
+      jarId: targetJarId,
+      balance: newBalance.toDouble(),
+    );
+
+    // Lưu vào jar_allocations để theo dõi
+    await client.from('jar_allocations').insert({
+      'jar_id': targetJarId,
+      'transaction_id': transactionId,
+      'amount': expenseAmount,
+    });
+  }
+
+  /// Rollback jar_allocations khi xóa transaction.
+  /// Trừ tiền từ hũ nếu là INCOME, cộng lại nếu là EXPENSE.
+  Future<void> _rollbackJarAllocations({
+    required String transactionId,
+    required String type,
+  }) async {
+    final client = SupabaseConfig.client;
+
+    // Lấy tất cả jar_allocations của transaction này
+    final allocations = await client
+        .from('jar_allocations')
+        .select('jar_id, amount')
+        .eq('transaction_id', transactionId);
+
+    if (allocations.isEmpty) return;
+
+    // Rollback từng allocation
+    for (final allocation in allocations) {
+      final jarId = allocation['jar_id'] as String;
+      final amount = (allocation['amount'] as num?) ?? 0;
+
+      // Lấy số dư hiện tại của hũ
+      final jar = await client
+          .from('jars')
+          .select('balance')
+          .eq('id', jarId)
+          .single();
+
+      final currentBalance = (jar['balance'] as num?) ?? 0;
+
+      // Tính số dư mới: nếu là INCOME thì trừ đi, nếu là EXPENSE thì cộng lại
+      final newBalance = type == 'INCOME'
+          ? (currentBalance - amount).clamp(0, double.infinity)
+          : currentBalance + amount;
+
+      // Cập nhật số dư hũ
+      await _jarRepository.updateJarBalance(
+        jarId: jarId,
+        balance: newBalance.toDouble(),
+      );
+    }
+
+    // Xóa jar_allocations
+    await client
+        .from('jar_allocations')
+        .delete()
+        .eq('transaction_id', transactionId);
   }
 }
 

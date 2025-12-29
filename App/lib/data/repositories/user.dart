@@ -92,8 +92,12 @@ class UserRepositoryImpl implements domain.UserRepository {
     String? avatarUrl,
   }) async {
     final updateData = <String, dynamic>{};
+    // Username: chỉ cập nhật nếu có giá trị (không null)
     if (username != null) updateData['username'] = username;
-    if (fullName != null) updateData['full_name'] = fullName;
+    if (username != null || fullName != null) {
+      updateData['full_name'] = fullName;
+    }
+    // AvatarUrl: chỉ cập nhật nếu có giá trị (không null)
     if (avatarUrl != null) updateData['avatar_url'] = avatarUrl;
 
     if (updateData.isEmpty) {

@@ -76,14 +76,18 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     });
 
     try {
+      // Xử lý username: nếu rỗng thì truyền null, nếu có giá trị thì truyền giá trị
+      final usernameValue = _usernameController.text.trim();
+      final usernameToUpdate = usernameValue.isEmpty ? null : usernameValue;
+      
+      // Xử lý fullName: nếu rỗng thì truyền null, nếu có giá trị thì truyền giá trị (giống như username)
+      final fullNameValue = _fullNameController.text.trim();
+      final fullNameToUpdate = fullNameValue.isEmpty ? null : fullNameValue;
+      
       await _updateUserProfile(
         userId: user.id,
-        username: _usernameController.text.trim().isEmpty
-            ? null
-            : _usernameController.text.trim(),
-        fullName: _fullNameController.text.trim().isEmpty
-            ? null
-            : _fullNameController.text.trim(),
+        username: usernameToUpdate,
+        fullName: fullNameToUpdate,
       );
 
       if (!mounted) return;

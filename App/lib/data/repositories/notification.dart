@@ -1,16 +1,24 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:expenses/core/supabase_flutter.dart';
 import '../../domain/repositories/notification.dart' as domain;
 
 /// Implementation của NotificationRepository sử dụng SharedPreferences
+/// Lưu trạng thái đã đọc theo user_id để tránh conflict giữa các user
 class NotificationRepositoryImpl implements domain.NotificationRepository {
-  static const String _keyReadNotificationIds = 'read_notification_ids';
+  /// Lấy key dựa trên user_id hiện tại
+  String _getKey() {
+    final user = SupabaseConfig.client.auth.currentUser;
+    final userId = user?.id ?? 'anonymous';
+    return 'read_notification_ids_$userId';
+  }
 
   @override
   Future<Set<String>> getReadNotificationIds() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final readIdsJson = prefs.getString(_keyReadNotificationIds);
+      final key = _getKey();
+      final readIdsJson = prefs.getString(key);
       if (readIdsJson != null) {
         final List<dynamic> readIdsList = jsonDecode(readIdsJson);
         return readIdsList.cast<String>().toSet();
@@ -25,8 +33,9 @@ class NotificationRepositoryImpl implements domain.NotificationRepository {
   Future<void> saveReadNotificationIds(Set<String> ids) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final key = _getKey();
       final readIdsList = ids.toList();
-      await prefs.setString(_keyReadNotificationIds, jsonEncode(readIdsList));
+      await prefs.setString(key, jsonEncode(readIdsList));
     } catch (e) {
       // Nếu lỗi, bỏ qua
     }

@@ -142,16 +142,18 @@ class TransactionItem extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Danh mục ở trên
                 Text(
-                  title,
+                  category,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: AppColors.gray900,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
+                // Tên giao dịch (ghi chú) ở dưới
                 Text(
-                  category,
+                  title,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.gray500,
                   ),

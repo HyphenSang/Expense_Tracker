@@ -20,7 +20,7 @@ const DashboardLayout = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default', width: '100%' }}>
       <Sidebar
         open={isDesktop ? true : open}
         onClose={toggleDrawer}
@@ -29,17 +29,26 @@ const DashboardLayout = () => {
         variant={isDesktop ? 'permanent' : 'temporary'}
       />
 
-      <Box component="main" sx={{ flexGrow: 1, ml: { lg: `${drawerWidth}px` } }}>
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          width: { lg: `calc(100% - ${drawerWidth}px)` },
+          minWidth: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <TopBar
           startAdornment={
             !isDesktop && (
-              <IconButton color="inherit" onClick={toggleDrawer}>
+              <IconButton onClick={toggleDrawer} sx={{ color: '#111827' }}>
                 <MenuIcon />
               </IconButton>
             )
           }
         />
-        <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Container maxWidth="xl" sx={{ py: 4, width: '100%', px: { xs: 2, sm: 3, md: 4 } }}>
           <Outlet />
         </Container>
       </Box>

@@ -9,6 +9,8 @@ class JarEntity {
   final double balance;
   final String? icon;
   final String? color;
+  final String? description;
+  final double? targetAmount;
 
   const JarEntity({
     required this.id,
@@ -20,6 +22,8 @@ class JarEntity {
     this.balance = 0,
     this.icon,
     this.color,
+    this.description,
+    this.targetAmount,
   });
 }
 

@@ -2,6 +2,7 @@ import '../../domain/entities/user_profile.dart';
 import '../../domain/repositories/auth.dart' as domain;
 import '../datasources/supabase.dart';
 import '../models/user_profile.dart';
+import '../../service/notification_realtime.dart';
 
 /// Implementation của AuthRepository
 class AuthRepositoryImpl implements domain.AuthRepository {
@@ -62,6 +63,9 @@ class AuthRepositoryImpl implements domain.AuthRepository {
 
   @override
   Future<void> signOut() async {
+    // Stop notification service trước khi đăng xuất để clear state
+    NotificationRealtimeService.stopListening();
+    
     await _dataSource.signOut();
   }
 

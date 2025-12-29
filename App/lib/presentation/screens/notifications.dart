@@ -24,7 +24,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final _getNotificationsEnabled = GetNotificationsEnabled(DI.preferenceRepository);
   final _setNotificationsEnabled = SetNotificationsEnabled(DI.preferenceRepository);
   final _markAsReadUseCase = MarkNotificationAsRead(DI.notificationRepository);
-  final _markAllAsReadUseCase = MarkAllNotificationsAsRead(DI.notificationRepository);
   StreamSubscription<List<domain.NotificationEntity>>? _notificationSubscription;
   Timer? _timeUpdateTimer;
 
@@ -110,7 +109,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
 
     try {
-      // Đảm bảo service đã start
+      // Kiểm tra trạng thái bật/tắt thông báo
+      final enabled = await _getNotificationsEnabled();
+      
+      if (!enabled) {
+        // Nếu thông báo đã tắt, dừng listening và clear notifications
+        NotificationRealtimeService.stopListening();
+        if (mounted) {
+          setState(() {
+            _notifications = [];
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+      
+      // Nếu thông báo đã bật, bắt đầu listening
       await NotificationRealtimeService.startListening();
       
       // Reload notifications và trạng thái đã đọc
@@ -220,22 +234,52 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           Switch(
                             value: _notificationsEnabled,
                             onChanged: (value) async {
-                              await _setNotificationsEnabled(value);
-                              if (mounted) {
-                                setState(() {
-                                  _notificationsEnabled = value;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      value
-                                          ? 'Đã bật thông báo'
-                                          : 'Đã tắt thông báo',
+                              try {
+                                // Lưu trạng thái vào SharedPreferences
+                                await _setNotificationsEnabled(value);
+                                
+                                // Cập nhật real-time listening dựa trên trạng thái
+                                if (value) {
+                                  // Bật thông báo: bắt đầu lại real-time listening
+                                  await NotificationRealtimeService.startListening();
+                                } else {
+                                  // Tắt thông báo: dừng real-time listening
+                                  NotificationRealtimeService.stopListening();
+                                  // Clear notifications và unread count
+                                  if (mounted) {
+                                    setState(() {
+                                      _notifications = [];
+                                    });
+                                  }
+                                }
+                                
+                                if (mounted) {
+                                  setState(() {
+                                    _notificationsEnabled = value;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        value
+                                            ? 'Đã bật thông báo'
+                                            : 'Đã tắt thông báo',
+                                      ),
+                                      backgroundColor: AppColors.success,
+                                      duration: const Duration(seconds: 2),
                                     ),
-                                    backgroundColor: AppColors.success,
-                                    duration: const Duration(seconds: 2),
-                                  ),
-                                );
+                                  );
+                                }
+                              } catch (e) {
+                                // Nếu có lỗi, revert lại trạng thái
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Lỗi khi ${value ? 'bật' : 'tắt'} thông báo: $e'),
+                                      backgroundColor: AppColors.error,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
                               }
                             },
                             activeColor: AppColors.primary,
@@ -507,13 +551,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _markAllAsRead() async {
-    final notificationIds = _notifications.map((n) => n.id).toList();
-    await _markAllAsReadUseCase(notificationIds);
-    setState(() {
-      _notifications.forEach((n) => n.isRead = true);
-    });
-    // Reload để sync với repository
-    await NotificationRealtimeService.reloadNotifications();
+    // Sử dụng service để đảm bảo sync với real-time service
+    // markAllAsRead() đã tự động reload notifications trước khi mark
+    await NotificationRealtimeService.markAllAsRead();
+    
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(

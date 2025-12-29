@@ -1,6 +1,6 @@
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/supabase_flutter.dart';
-import 'package:expenses/data/sample_data.dart';
+import 'package:expenses/presentation/widgets/jar_data.dart';
 import 'package:expenses/presentation/widgets/recent_transactions.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';

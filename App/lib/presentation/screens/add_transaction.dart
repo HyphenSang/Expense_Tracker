@@ -9,6 +9,8 @@ import 'package:expenses/domain/features/transaction.dart';
 import 'package:expenses/domain/entities/wallet.dart';
 import 'package:expenses/presentation/screens/create_category.dart';
 import 'package:expenses/service/notification_realtime.dart';
+import 'package:expenses/domain/features/preference.dart';
+import 'package:expenses/service/budget_checker.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key});
@@ -31,6 +33,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   // Use cases
   final _getCurrentUser = GetCurrentUser(DI.authRepository);
+  final _getNotificationsEnabled = GetNotificationsEnabled(DI.preferenceRepository);
 
   @override
   void dispose() {
@@ -141,6 +144,84 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         type: _isExpense ? 'EXPENSE' : 'INCOME',
       );
 
+      // Kiểm tra ngân sách nếu là chi tiêu (với cảnh báo nhẹ nhàng)
+      String? overBudgetReason;
+      if (_isExpense) {
+        final budgetCheck = await BudgetCheckerService.checkBudget(
+          userId: user.id,
+          categoryId: category.id,
+          transactionDate: _selectedDate,
+          transactionAmount: amount,
+        );
+
+        // Hiển thị cảnh báo nhẹ nhàng nếu cần
+        // Bao gồm cả trường hợp budget đã pause
+        if (budgetCheck.isWarning || budgetCheck.isCritical || budgetCheck.isExceeded || budgetCheck.isPaused) {
+          if (mounted) {
+            final shouldContinue = await _showFriendlyBudgetWarning(context, budgetCheck, amount);
+            
+            if (!shouldContinue) {
+              setState(() {
+                _isSubmitting = false;
+              });
+              return;
+            }
+
+            // Nếu budget đã pause (strict mode), yêu cầu lý do bắt buộc
+            if (budgetCheck.isPaused && budgetCheck.budgetMode == BudgetMode.strict) {
+              overBudgetReason = await _showOverBudgetReasonDialog(context);
+              
+              // Lý do bắt buộc khi budget đã pause
+              if (overBudgetReason == null || overBudgetReason.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Vui lòng nhập lý do để tiếp tục'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+                setState(() {
+                  _isSubmitting = false;
+                });
+                return;
+              }
+              
+              // Lưu lý do
+              if (budgetCheck.budget != null) {
+                await BudgetCheckerService.saveOverBudgetReason(
+                  budgetId: budgetCheck.budget!['id'] as String,
+                  reason: overBudgetReason,
+                  overBudgetAmount: budgetCheck.overBudgetAmount,
+                );
+              }
+            }
+            // Nếu vượt ngân sách (>100%), luôn cho phép ghi lý do (tùy chọn)
+            // Hoặc nếu cần lý do theo chế độ budget
+            else if (budgetCheck.isExceeded || budgetCheck.needsReason) {
+              overBudgetReason = await _showOverBudgetReasonDialog(context);
+              
+              // Lưu lý do nếu user muốn
+              if (overBudgetReason != null && overBudgetReason.isNotEmpty && budgetCheck.budget != null) {
+                await BudgetCheckerService.saveOverBudgetReason(
+                  budgetId: budgetCheck.budget!['id'] as String,
+                  reason: overBudgetReason,
+                  overBudgetAmount: budgetCheck.overBudgetAmount,
+                );
+              }
+            }
+
+            // Tự động pause budget nếu strict mode và đạt 100%
+            if (budgetCheck.budget != null && budgetCheck.isExceeded && !budgetCheck.isPaused) {
+              await BudgetCheckerService.autoPauseBudgetIfNeeded(
+                budgetId: budgetCheck.budget!['id'] as String,
+                spentAmount: budgetCheck.projectedSpent,
+                limitAmount: budgetCheck.budget!['limit_amount'] as num,
+                mode: budgetCheck.budgetMode,
+              );
+            }
+          }
+        }
+      }
+
       // Lấy wallet đã chọn hoặc wallet mặc định
       String walletId;
       if (_selectedWalletId != null) {
@@ -165,8 +246,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       if (!mounted) return;
       
-      // Reload notifications ngay sau khi tạo transaction thành công
-      await NotificationRealtimeService.reloadNotifications();
+      // Chỉ reload notifications nếu thông báo đã bật
+      final notificationsEnabled = await _getNotificationsEnabled();
+      if (notificationsEnabled) {
+        // Reload notifications ngay lập tức để cập nhật số trên chuông
+        // Real-time stream có debounce nên có thể có delay, gọi trực tiếp để cập nhật ngay
+        await NotificationRealtimeService.reloadNotifications();
+      }
       
       // Trả về true để báo hiệu đã thêm thành công
       Navigator.of(context).pop(true);
@@ -194,6 +280,229 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         });
       }
     }
+  }
+
+  /// Hiển thị dialog cảnh báo ngân sách nhẹ nhàng
+  Future<bool> _showFriendlyBudgetWarning(
+    BuildContext context,
+    BudgetCheckResult budgetCheck,
+    int amount,
+  ) async {
+    final theme = Theme.of(context);
+    Color alertColor;
+    IconData alertIcon;
+    String title;
+    
+    if (budgetCheck.isExceeded) {
+      alertColor = AppColors.error;
+      alertIcon = Icons.info_outline_rounded;
+      title = 'Thông tin ngân sách';
+    } else if (budgetCheck.isCritical) {
+      alertColor = AppColors.warning;
+      alertIcon = Icons.info_outline_rounded;
+      title = 'Lưu ý ngân sách';
+    } else {
+      alertColor = AppColors.info;
+      alertIcon = Icons.info_outline_rounded;
+      title = 'Thông tin ngân sách';
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        title: Row(
+          children: [
+            Icon(alertIcon, color: alertColor, size: 24),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gray900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thông điệp nhẹ nhàng
+            Text(
+              budgetCheck.message ?? '',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.gray700,
+              ),
+            ),
+            if (budgetCheck.budget != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: alertColor.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Chi tiết:',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.gray700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Hạn mức: ${_formatCurrencyForBudget(budgetCheck.budget!['limit_amount'] as num)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    Text(
+                      'Đã chi: ${_formatCurrencyForBudget((budgetCheck.budget!['spent_amount'] as num?) ?? 0)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    Text(
+                      'Giao dịch này: ${_formatCurrencyForBudget(amount)}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    if (budgetCheck.overBudgetAmount > 0)
+                      Text(
+                        'Vượt: ${_formatCurrencyForBudget(budgetCheck.overBudgetAmount)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Bạn có muốn tiếp tục thêm giao dịch này không?',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.gray600,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Hủy',
+              style: TextStyle(color: AppColors.gray600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Tiếp tục'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? true; // Mặc định cho phép nếu user đóng dialog
+  }
+
+  /// Hiển thị dialog yêu cầu ghi lý do vượt ngân sách (tùy chọn)
+  Future<String?> _showOverBudgetReasonDialog(BuildContext context) async {
+    final reasonController = TextEditingController();
+    final theme = Theme.of(context);
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.edit_note_rounded, color: AppColors.info, size: 24),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Ghi lý do (tùy chọn)',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gray900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Bạn có muốn ghi lại lý do vượt ngân sách để nhớ lần sau không?',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.gray700,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: reasonController,
+              decoration: InputDecoration(
+                hintText: 'Ví dụ: Mua quà sinh nhật, Chi phí khẩn cấp...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                filled: true,
+                fillColor: AppColors.gray50,
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: Text(
+              'Bỏ qua',
+              style: TextStyle(color: AppColors.gray600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final reason = reasonController.text.trim();
+              Navigator.of(context).pop(reason.isEmpty ? null : reason);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+
+    reasonController.dispose();
+    return result;
+  }
+
+  String _formatCurrencyForBudget(num amount) {
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(1)}M ₫';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(0)}K ₫';
+    }
+    return '${amount.toStringAsFixed(0)} ₫';
   }
 
   @override
@@ -592,7 +901,7 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
 
           // Debug: In ra categoryGroup để kiểm tra
           // print('Category: ${cat.name}, categoryGroup: ${cat.categoryGroup}');
-          
+
           return _CategoryItem(
             name: cat.name,
             icon: _getIconFromString(cat.icon),
@@ -613,7 +922,7 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
   IconData _getIconFromString(String? iconName) {
     // Map icon name string to IconData
     if (iconName == null || iconName.isEmpty) {
-      return Icons.category;
+    return Icons.category;
     }
     
     // Parse format: "codePoint" hoặc "codePoint:fontFamily"
@@ -1025,21 +1334,21 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                                 // Không có categoryGroup hoặc không khớp với các nhóm trên
                                 if (cat.categoryGroup == null) {
                                   // Fallback: kiểm tra tên
-                                  final name = cat.name.toLowerCase();
-                                  return !name.contains('chợ') &&
-                                      !name.contains('siêu thị') &&
-                                      !name.contains('ăn uống') &&
-                                      !name.contains('di chuyển') &&
-                                      !name.contains('mua sắm') &&
-                                      !name.contains('giải trí') &&
-                                      !name.contains('làm đẹp') &&
-                                      !name.contains('sức khỏe') &&
-                                      !name.contains('từ thiện') &&
-                                      !name.contains('hóa đơn') &&
-                                      !name.contains('nhà cửa') &&
-                                      !name.contains('người thân') &&
-                                      !name.contains('đầu tư') &&
-                                      !name.contains('học tập');
+                                final name = cat.name.toLowerCase();
+                                return !name.contains('chợ') &&
+                                    !name.contains('siêu thị') &&
+                                    !name.contains('ăn uống') &&
+                                    !name.contains('di chuyển') &&
+                                    !name.contains('mua sắm') &&
+                                    !name.contains('giải trí') &&
+                                    !name.contains('làm đẹp') &&
+                                    !name.contains('sức khỏe') &&
+                                    !name.contains('từ thiện') &&
+                                    !name.contains('hóa đơn') &&
+                                    !name.contains('nhà cửa') &&
+                                    !name.contains('người thân') &&
+                                    !name.contains('đầu tư') &&
+                                    !name.contains('học tập');
                                 }
                                 return cat.categoryGroup != 'living' &&
                                     cat.categoryGroup != 'incidental' &&

@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:expenses/common/theme.dart';
 import 'package:expenses/core/di/di.dart';
+import 'package:expenses/core/supabase_flutter.dart';
 import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/domain/features/category.dart';
+import 'package:expenses/domain/entities/category.dart';
 
-/// Màn hình tạo danh mục mới (full screen).
+/// Màn hình tạo hoặc chỉnh sửa danh mục (full screen).
 class CreateCategoryScreen extends StatefulWidget {
   final bool initialIsExpense;
+  final CategoryEntity? category; // null nếu là tạo mới
 
   const CreateCategoryScreen({
     super.key,
     this.initialIsExpense = true,
+    this.category,
   });
 
   @override
@@ -27,6 +31,9 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
   Color _selectedColor = AppColors.gray500;
   final int _maxNameLength = 30;
   String? _selectedGroup; // 'living', 'incidental', 'fixed', 'investment'
+  String? _selectedJarId; // Liên kết với jar (chủ yếu cho EXPENSE)
+  List<Map<String, dynamic>> _jars = [];
+  bool _isLoadingJars = false;
 
   // Use cases
   final _getCurrentUser = GetCurrentUser(DI.authRepository);
@@ -36,6 +43,34 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
     super.initState();
     _isExpense = widget.initialIsExpense;
     _nameController.addListener(() => setState(() {}));
+    _loadJars();
+  }
+
+  Future<void> _loadJars() async {
+    final user = _getCurrentUser();
+    if (user == null) return;
+
+    setState(() {
+      _isLoadingJars = true;
+    });
+
+    try {
+      final res = await SupabaseConfig.client
+          .from('jars')
+          .select('id, name, slug')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('created_at', ascending: true);
+
+      setState(() {
+        _jars = List<Map<String, dynamic>>.from(res);
+        _isLoadingJars = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoadingJars = false;
+      });
+    }
   }
 
   @override
@@ -93,14 +128,35 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
         throw StateError('Chưa đăng nhập');
       }
 
-      final createCategory = CreateCategory(DI.categoryRepository, user.id);
-      await createCategory(
-        name: name,
-        type: _isExpense ? 'EXPENSE' : 'INCOME',
-        icon: iconName.isNotEmpty ? iconName : null, // Đảm bảo không truyền empty string
-        color: colorHex,
-        categoryGroup: _selectedGroup,
-      );
+      // Kiểm tra bắt buộc jar cho EXPENSE
+      if (_isExpense && (_selectedJarId == null || _selectedJarId!.isEmpty)) {
+        throw StateError('Vui lòng chọn hũ tài chính cho danh mục chi tiêu');
+      }
+
+      if (widget.category == null) {
+        // Tạo mới
+        final createCategory = CreateCategory(DI.categoryRepository, user.id);
+        await createCategory(
+          name: name,
+          type: _isExpense ? 'EXPENSE' : 'INCOME',
+          icon: iconName.isNotEmpty ? iconName : null,
+          color: colorHex,
+          categoryGroup: _selectedGroup,
+          jarId: _isExpense ? _selectedJarId : null,
+        );
+      } else {
+        // Cập nhật
+        final updateCategory = UpdateCategory(DI.categoryRepository);
+        await updateCategory(
+          categoryId: widget.category!.id,
+          name: name,
+          type: _isExpense ? 'EXPENSE' : 'INCOME',
+          icon: iconName.isNotEmpty ? iconName : null,
+          color: colorHex,
+          categoryGroup: _selectedGroup,
+          jarId: _isExpense ? _selectedJarId : null,
+        );
+      }
 
       if (!mounted) return;
 
@@ -109,7 +165,9 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Đã tạo danh mục "$name" thành công'),
+          content: Text(widget.category == null
+              ? 'Đã tạo danh mục "$name" thành công'
+              : 'Đã cập nhật danh mục "$name" thành công'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -144,7 +202,9 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final nameLength = _nameController.text.length;
-    final isValid = nameLength >= 2 && nameLength <= _maxNameLength;
+    final isValid = nameLength >= 2 && 
+                    nameLength <= _maxNameLength &&
+                    (!_isExpense || _selectedJarId != null); // Bắt buộc chọn jar cho EXPENSE
 
     return Scaffold(
       appBar: AppBar(
@@ -152,7 +212,7 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('Tạo danh mục'),
+        title: Text(widget.category == null ? 'Tạo danh mục' : 'Chỉnh sửa danh mục'),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -169,6 +229,10 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
                   onChanged: (value) {
                     setState(() {
                       _isExpense = value;
+                      // Reset jar selection khi đổi loại (INCOME không cần jar)
+                      if (!value) {
+                        _selectedJarId = null;
+                      }
                     });
                   },
                 ),
@@ -248,11 +312,71 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
                 ),
                 const SizedBox(height: AppSpacing.xl),
                 
+                // Chọn hũ tài chính - BẮT BUỘC cho EXPENSE
+                if (_isExpense) ...[
+                  Text(
+                    'Hũ tài chính *',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: AppColors.gray700,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  _isLoadingJars
+                      ? const Padding(
+                          padding: EdgeInsets.all(AppSpacing.md),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : DropdownButtonFormField<String>(
+                          value: _selectedJarId,
+                          decoration: InputDecoration(
+                            hintText: 'Chọn hũ để tự động trừ khi chi tiêu',
+                            filled: true,
+                            fillColor: AppColors.gray100.withValues(alpha: 0.5),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              borderSide: BorderSide(color: AppColors.gray300),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              borderSide: BorderSide(color: AppColors.gray300),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                              borderSide: BorderSide(color: AppColors.primary),
+                            ),
+                            suffixIcon: const Icon(Icons.chevron_right),
+                            errorText: _isExpense && _selectedJarId == null && nameLength >= 2
+                                ? 'Vui lòng chọn hũ tài chính'
+                                : null,
+                          ),
+                          dropdownColor: Colors.white,
+                          items: _jars.map((jar) {
+                            return DropdownMenuItem<String>(
+                              value: jar['id'] as String,
+                              child: Text(jar['name'] as String),
+                            );
+                          }).toList(),
+                          validator: (value) {
+                            if (_isExpense && (value == null || value.isEmpty)) {
+                              return 'Vui lòng chọn hũ tài chính';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedJarId = value;
+                            });
+                          },
+                        ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+                
                 // Thuộc danh mục (Parent category) - tùy chọn
                 // Chỉ hiển thị cho EXPENSE
                 if (_isExpense) ...[
                   Text(
-                    'Thuộc danh mục (tùy chọn)',
+                    'Nhóm danh mục (tùy chọn)',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: AppColors.gray700,
                       fontWeight: FontWeight.w500,
@@ -320,7 +444,9 @@ class _CreateCategoryScreenState extends State<CreateCategoryScreen> {
                       disabledForegroundColor: AppColors.gray500,
                     ),
                     child: Text(
-                      _isCreating ? 'Đang tạo...' : 'Xác nhận',
+                      _isCreating
+                          ? (widget.category == null ? 'Đang tạo...' : 'Đang cập nhật...')
+                          : (widget.category == null ? 'Tạo mới' : 'Cập nhật'),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),

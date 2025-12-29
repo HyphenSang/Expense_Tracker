@@ -63,6 +63,8 @@ class NotificationService {
     }
 
     // 2. Nhắc nhở ghi chép chi tiêu hôm nay (nếu chưa có giao dịch trong ngày)
+    // LƯU Ý: Reminder chỉ được tạo nếu KHÔNG có transaction trong ngày
+    // Nếu đã có transaction, reminder sẽ KHÔNG được tạo (và reminder cũ sẽ không hiển thị)
     try {
       final todayStart = DateTime(now.year, now.month, now.day);
       final tomorrowStart = todayStart.add(const Duration(days: 1));
@@ -75,6 +77,7 @@ class NotificationService {
           .lt('occurred_at', tomorrowStart.toIso8601String())
           .limit(1);
 
+      // CHỈ tạo reminder nếu KHÔNG có transaction trong ngày
       if (res.isEmpty) {
         notifications.add(
           NotificationEntity(
@@ -89,6 +92,8 @@ class NotificationService {
           ),
         );
       }
+      // Nếu đã có transaction trong ngày, KHÔNG tạo reminder
+      // Reminder cũ (nếu có) sẽ không được load vì logic này không tạo nó
     } catch (_) {
       // Bỏ qua nếu lỗi
     }
@@ -139,10 +144,28 @@ class NotificationService {
       return notification.createdAt.isBefore(weekAgo);
     });
 
-    // Sắp xếp thông báo theo thời gian mới nhất ở trên
-    notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Loại bỏ notification trùng lặp (cùng ID)
+    // Sử dụng Map để đảm bảo mỗi notification ID chỉ xuất hiện 1 lần
+    final uniqueNotifications = <String, NotificationEntity>{};
+    for (final notification in notifications) {
+      // Nếu đã có notification với ID này, giữ notification mới hơn (createdAt lớn hơn)
+      if (uniqueNotifications.containsKey(notification.id)) {
+        final existing = uniqueNotifications[notification.id]!;
+        if (notification.createdAt.isAfter(existing.createdAt)) {
+          uniqueNotifications[notification.id] = notification;
+        }
+      } else {
+        uniqueNotifications[notification.id] = notification;
+      }
+    }
 
-    return notifications;
+    // Chuyển Map thành List
+    final finalNotifications = uniqueNotifications.values.toList();
+
+    // Sắp xếp thông báo theo thời gian mới nhất ở trên
+    finalNotifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return finalNotifications;
   }
 }
 

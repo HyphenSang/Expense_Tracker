@@ -40,6 +40,7 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
     String? icon,
     String? color,
     String? categoryGroup,
+    String? jarId,
   }) async {
     final category = await _dataSource.createCategory(
       userId: userId,
@@ -48,6 +49,29 @@ class CategoryRepositoryImpl implements domain.CategoryRepository {
       icon: icon,
       color: color,
       categoryGroup: categoryGroup,
+      jarId: jarId,
+    );
+    return CategoryModel.fromJson(category);
+  }
+
+  @override
+  Future<CategoryEntity> updateCategory({
+    required String categoryId,
+    String? name,
+    String? type,
+    String? icon,
+    String? color,
+    String? categoryGroup,
+    String? jarId,
+  }) async {
+    final category = await _dataSource.updateCategory(
+      categoryId: categoryId,
+      name: name,
+      type: type,
+      icon: icon,
+      color: color,
+      categoryGroup: categoryGroup,
+      jarId: jarId,
     );
     return CategoryModel.fromJson(category);
   }

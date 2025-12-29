@@ -79,17 +79,46 @@ class AppRadius {
 class AppShadows {
   static List<BoxShadow> get bottomNavShadow => [
     BoxShadow(
-      color: AppColors.gray200.withValues(alpha: 0.5),
-      blurRadius: 10,
-      offset: const Offset(0, -2),
+      color: AppColors.gray900.withValues(alpha: 0.08),
+      blurRadius: 20,
+      offset: const Offset(0, -4),
+      spreadRadius: 0,
     ),
   ];
   
   static List<BoxShadow> get cardShadow => [
     BoxShadow(
-      color: AppColors.gray200.withValues(alpha: 0.3),
-      blurRadius: 8,
+      color: AppColors.gray900.withValues(alpha: 0.06),
+      blurRadius: 16,
+      offset: const Offset(0, 4),
+      spreadRadius: 0,
+    ),
+  ];
+  
+  static List<BoxShadow> get cardShadowHover => [
+    BoxShadow(
+      color: AppColors.gray900.withValues(alpha: 0.1),
+      blurRadius: 24,
+      offset: const Offset(0, 8),
+      spreadRadius: -2,
+    ),
+  ];
+  
+  static List<BoxShadow> get floatingButtonShadow => [
+    BoxShadow(
+      color: AppColors.primary.withValues(alpha: 0.3),
+      blurRadius: 20,
+      offset: const Offset(0, 8),
+      spreadRadius: 0,
+    ),
+  ];
+  
+  static List<BoxShadow> get headerShadow => [
+    BoxShadow(
+      color: AppColors.gray200.withValues(alpha: 0.5),
+      blurRadius: 10,
       offset: const Offset(0, 2),
+      spreadRadius: 0,
     ),
   ];
 }

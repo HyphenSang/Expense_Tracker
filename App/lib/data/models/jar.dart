@@ -12,6 +12,8 @@ class JarModel extends JarEntity {
     super.balance,
     super.icon,
     super.color,
+    super.description,
+    super.targetAmount,
   });
 
   factory JarModel.fromJson(Map<String, dynamic> json) {
@@ -25,6 +27,8 @@ class JarModel extends JarEntity {
       balance: (json['balance'] as num?)?.toDouble() ?? 0,
       icon: json['icon'] as String?,
       color: json['color'] as String?,
+      description: json['description'] as String?,
+      targetAmount: (json['target_amount'] as num?)?.toDouble(),
     );
   }
 

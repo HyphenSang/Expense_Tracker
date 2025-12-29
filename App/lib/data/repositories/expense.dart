@@ -3,7 +3,7 @@ import '../datasources/supabase.dart';
 import '../../core/supabase_flutter.dart';
 import '../../common/theme.dart';
 import '../../presentation/widgets/recent_transactions.dart';
-import '../../data/sample_data.dart';
+import '../../presentation/widgets/jar_data.dart';
 import '../../service/expense.dart' hide MonthlyComparison, ExpenseSummary, CategorySpendingSummary;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';

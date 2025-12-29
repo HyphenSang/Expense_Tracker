@@ -29,6 +29,7 @@ class CreateCategory {
     String? icon,
     String? color,
     String? categoryGroup,
+    String? jarId,
   }) async {
     return await _repository.createCategory(
       userId: _userId,
@@ -37,6 +38,7 @@ class CreateCategory {
       icon: icon,
       color: color,
       categoryGroup: categoryGroup,
+      jarId: jarId,
     );
   }
 }
@@ -57,6 +59,44 @@ class GetOrCreateCategory {
       categoryName: categoryName,
       type: type,
     );
+  }
+}
+
+/// Use case để cập nhật category
+class UpdateCategory {
+  final CategoryRepository _repository;
+
+  UpdateCategory(this._repository);
+
+  Future<CategoryEntity> call({
+    required String categoryId,
+    String? name,
+    String? type,
+    String? icon,
+    String? color,
+    String? categoryGroup,
+    String? jarId,
+  }) async {
+    return await _repository.updateCategory(
+      categoryId: categoryId,
+      name: name,
+      type: type,
+      icon: icon,
+      color: color,
+      categoryGroup: categoryGroup,
+      jarId: jarId,
+    );
+  }
+}
+
+/// Use case để xóa category
+class DeleteCategory {
+  final CategoryRepository _repository;
+
+  DeleteCategory(this._repository);
+
+  Future<void> call(String categoryId) async {
+    return await _repository.deleteCategory(categoryId);
   }
 }
 

@@ -5,10 +5,13 @@ import 'package:expenses/core/di/di.dart';
 import 'package:expenses/domain/features/auth.dart';
 import 'package:expenses/domain/features/category.dart';
 import 'package:expenses/core/supabase_flutter.dart';
+import 'package:expenses/presentation/screens/budget_detail.dart';
 
 /// Màn hình tạo/chỉnh sửa ngân sách.
 class AddBudgetScreen extends StatefulWidget {
-  const AddBudgetScreen({super.key});
+  final Map<String, dynamic>? budgetToEdit;
+
+  const AddBudgetScreen({super.key, this.budgetToEdit});
 
   @override
   State<AddBudgetScreen> createState() => _AddBudgetScreenState();
@@ -18,18 +21,53 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   final _formKey = GlobalKey<FormState>();
   final _limitController = TextEditingController();
 
-  String _budgetType = 'category'; // 'category' hoặc 'jar'
   String? _selectedCategoryId;
   String? _selectedCategoryName;
-  String? _selectedJarId;
-  String? _selectedJarName;
   String _selectedPeriod = 'MONTHLY'; // MONTHLY, WEEKLY, YEARLY
+  String _selectedBudgetMode = 'reminder'; // reminder, warning, strict
   DateTime _startDate = DateTime.now();
   DateTime? _endDate;
   bool _isCreating = false;
 
   // Use cases
   final _getCurrentUser = GetCurrentUser(DI.authRepository);
+
+  bool get _isEditMode => widget.budgetToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditMode) {
+      _loadBudgetData();
+    }
+  }
+
+  void _loadBudgetData() {
+    final budget = widget.budgetToEdit!;
+    // Đảm bảo lấy đúng limit_amount, không nhầm với spent_amount
+    final limitValue = budget['limit'] as num?;
+    if (limitValue == null) {
+      throw StateError('Không thể tải dữ liệu ngân sách: thiếu limit_amount');
+    }
+    _limitController.text = limitValue.toString();
+    _selectedCategoryId = budget['categoryId'] as String?;
+    _selectedCategoryName = budget['categoryName'] as String?;
+    _selectedPeriod = budget['period'] as String? ?? 'MONTHLY';
+    _selectedBudgetMode = budget['budgetMode'] as String? ?? 'reminder';
+    
+    final startDateStr = budget['startDate'] as String?;
+    if (startDateStr != null) {
+      _startDate = DateTime.parse(startDateStr);
+    }
+    
+    final endDateStr = budget['endDate'] as String?;
+    if (endDateStr != null) {
+      _endDate = DateTime.parse(endDateStr);
+    } else {
+      // Nếu không có end_date, tự động tính toán dựa trên period
+      _calculateEndDate();
+    }
+  }
 
   @override
   void dispose() {
@@ -68,22 +106,53 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
     }
   }
 
-  Future<void> _pickJar() async {
-    final result = await showModalBottomSheet<Map<String, String>>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
-      ),
-      builder: (context) => const _JarPickerSheet(),
-    );
 
-    if (result != null) {
-      setState(() {
-        _selectedJarId = result['id'];
-        _selectedJarName = result['name'];
-      });
+  /// Tính toán ngày kết thúc dựa trên ngày bắt đầu và chu kỳ
+  void _calculateEndDate() {
+    DateTime newEndDate;
+    switch (_selectedPeriod) {
+      case 'WEEKLY':
+        // Hàng tuần: thêm 6 ngày (tổng 7 ngày từ ngày bắt đầu)
+        newEndDate = _startDate.add(const Duration(days: 6));
+        break;
+      case 'MONTHLY':
+        // Hàng tháng: thêm 1 tháng, trừ 1 ngày
+        // Ví dụ: 01/01 -> 31/01 (30 ngày)
+        try {
+          final nextMonth = DateTime(_startDate.year, _startDate.month + 1, _startDate.day);
+          // Nếu ngày không hợp lệ (ví dụ: 31/02), lấy ngày cuối của tháng
+          if (nextMonth.month != ((_startDate.month % 12) + 1)) {
+            newEndDate = DateTime(_startDate.year, _startDate.month + 1, 0);
+          } else {
+            newEndDate = nextMonth.subtract(const Duration(days: 1));
+          }
+        } catch (e) {
+          // Fallback: lấy ngày cuối của tháng
+          newEndDate = DateTime(_startDate.year, _startDate.month + 1, 0);
+        }
+        break;
+      case 'YEARLY':
+        // Hàng năm: thêm 1 năm, trừ 1 ngày
+        // Ví dụ: 01/01/2024 -> 31/12/2024 (365 ngày)
+        try {
+          final nextYear = DateTime(_startDate.year + 1, _startDate.month, _startDate.day);
+          // Xử lý năm nhuận (29/02)
+          if (nextYear.month != _startDate.month || nextYear.day != _startDate.day) {
+            newEndDate = DateTime(_startDate.year + 1, _startDate.month, 0);
+          } else {
+            newEndDate = nextYear.subtract(const Duration(days: 1));
+          }
+        } catch (e) {
+          // Fallback: lấy ngày cuối của tháng trước đó trong năm sau
+          newEndDate = DateTime(_startDate.year + 1, _startDate.month, 0);
+        }
+        break;
+      default:
+        return;
     }
+      setState(() {
+      _endDate = newEndDate;
+      });
   }
 
   Future<void> _pickStartDate() async {
@@ -110,6 +179,8 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
       setState(() {
         _startDate = result;
       });
+      // Tự động tính toán ngày kết thúc khi thay đổi ngày bắt đầu
+      _calculateEndDate();
     }
   }
 
@@ -143,20 +214,10 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   Future<void> _createBudget() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_budgetType == 'category' && _selectedCategoryId == null) {
+    if (_selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Vui lòng chọn danh mục'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    if (_budgetType == 'jar' && _selectedJarId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng chọn hũ'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -186,10 +247,10 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
         'spent_amount': 0,
         'start_date': _startDate.toIso8601String().split('T')[0],
         'is_active': true,
+        'budget_mode': _selectedBudgetMode, // reminder, warning, strict
       };
 
-      // Thêm category_id hoặc jar_id tùy theo loại budget
-      if (_budgetType == 'category' && _selectedCategoryId != null) {
+      // Thêm category_id
         String? finalCategoryId = _selectedCategoryId;
         
         // Nếu là default category, cần tạo category trong database trước
@@ -203,26 +264,67 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
         }
         
         budgetData['category_id'] = finalCategoryId as Object;
-      } else if (_budgetType == 'jar' && _selectedJarId != null) {
-        budgetData['jar_id'] = _selectedJarId as Object;
-      }
 
       // Thêm end_date nếu có
       if (_endDate != null) {
         budgetData['end_date'] = _endDate!.toIso8601String().split('T')[0];
       }
 
-      await SupabaseConfig.client
-          .from('budgets')
-          .insert(budgetData);
+      // Chỉ kiểm tra overlap khi tạo mới, không check khi edit
+      if (!_isEditMode) {
+        final overlappingBudget = await _checkOverlappingBudget(
+          userId: user.id,
+          categoryId: finalCategoryId!,
+          newStartDate: _startDate,
+          newEndDate: _endDate,
+        );
+
+        if (overlappingBudget != null) {
+          // Hiển thị dialog cảnh báo với budget trùng lặp
+          final action = await _showOverlappingBudgetDialog(context, overlappingBudget);
+          
+          if (action == 'cancel') {
+            setState(() {
+              _isCreating = false;
+            });
+            return;
+          } else if (action == 'view_detail') {
+            // User muốn xem chi tiết, không tạo budget mới
+            setState(() {
+              _isCreating = false;
+            });
+            return;
+          }
+          // Nếu action == 'continue', vẫn tạo budget mới
+        }
+      }
+
+      // Tạo hoặc cập nhật budget trong Supabase
+      if (_isEditMode) {
+        final budgetId = widget.budgetToEdit!['id'] as String;
+        // Không cập nhật spent_amount, chỉ cập nhật các field khác
+        final updateData = {
+          'period': budgetData['period'],
+          'limit_amount': budgetData['limit_amount'],
+          'start_date': budgetData['start_date'],
+          'end_date': budgetData['end_date'],
+          'category_id': budgetData['category_id'],
+          'budget_mode': budgetData['budget_mode'],
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+        await DI.budgetRepository.updateBudget(budgetId, updateData);
+      } else {
+        // Tạo budget mới
+        await SupabaseConfig.client.from('budgets').insert(budgetData);
+      }
 
       if (!mounted) return;
 
       Navigator.of(context).pop(true);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đã tạo ngân sách thành công'),
+        SnackBar(
+          content: Text(_isEditMode ? 'Đã cập nhật ngân sách thành công' : 'Đã tạo ngân sách thành công'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -231,7 +333,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Không thể tạo ngân sách: $e'),
+          content: Text(_isEditMode ? 'Không thể cập nhật ngân sách: $e' : 'Không thể tạo ngân sách: $e'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -244,16 +346,491 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
     }
   }
 
+  /// Kiểm tra xem có budget trùng lặp không (cùng category, cùng khoảng thời gian)
+  Future<Map<String, dynamic>?> _checkOverlappingBudget({
+    required String userId,
+    required String categoryId,
+    required DateTime newStartDate,
+    DateTime? newEndDate,
+  }) async {
+    try {
+      // Lấy tất cả budgets active của user có category_id này
+      final existingBudgets = await SupabaseConfig.client
+          .from('budgets')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('category_id', categoryId)
+          .eq('is_active', true);
+
+      final now = DateTime.now();
+
+      for (final budget in existingBudgets as List) {
+        final oldStartDateStr = budget['start_date'] as String;
+        final oldEndDateStr = budget['end_date'] as String?;
+        final oldStartDate = DateTime.parse(oldStartDateStr);
+        final oldEndDate = oldEndDateStr != null ? DateTime.parse(oldEndDateStr) : null;
+
+        // Kiểm tra xem budget cũ có đang diễn ra không (chưa hết thời gian)
+        final isOldActive = oldEndDate == null || now.isBefore(oldEndDate) || now.isAtSameMomentAs(oldEndDate);
+
+        if (!isOldActive) continue; // Bỏ qua budget đã hết thời gian
+
+        // Kiểm tra overlap giữa 2 khoảng thời gian
+        // Overlap nếu: newStartDate <= oldEndDate VÀ (newEndDate == null HOẶC newEndDate >= oldStartDate)
+        // Hoặc: newEndDate == null (không giới hạn) và newStartDate <= oldEndDate
+        // Hoặc: oldEndDate == null (không giới hạn) và newEndDate >= oldStartDate
+        bool hasOverlap = false;
+        
+        if (newEndDate == null && oldEndDate == null) {
+          // Cả 2 đều không giới hạn -> luôn overlap
+          hasOverlap = true;
+        } else if (newEndDate == null) {
+          // Budget mới không giới hạn -> overlap nếu newStartDate <= oldEndDate
+          if (oldEndDate != null) {
+            hasOverlap = newStartDate.isBefore(oldEndDate) || newStartDate.isAtSameMomentAs(oldEndDate);
+          }
+        } else if (oldEndDate == null) {
+          // Budget cũ không giới hạn -> overlap nếu newEndDate >= oldStartDate
+          hasOverlap = newEndDate.isAfter(oldStartDate) || newEndDate.isAtSameMomentAs(oldStartDate);
+        } else {
+          // Cả 2 đều có endDate -> overlap nếu newStartDate <= oldEndDate VÀ newEndDate >= oldStartDate
+          hasOverlap = (newStartDate.isBefore(oldEndDate) || newStartDate.isAtSameMomentAs(oldEndDate)) &&
+              (newEndDate.isAfter(oldStartDate) || newEndDate.isAtSameMomentAs(oldStartDate));
+        }
+
+        if (hasOverlap) {
+          // Lấy thông tin category để hiển thị
+          final categoryRes = await SupabaseConfig.client
+              .from('categories')
+              .select('name, icon, color')
+              .eq('id', categoryId)
+              .single();
+
+          return {
+            'id': budget['id'] as String,
+            'categoryName': categoryRes['name'] as String? ?? _selectedCategoryName ?? '',
+            'limitAmount': budget['limit_amount'] as num? ?? 0,
+            'spentAmount': budget['spent_amount'] as num? ?? 0,
+            'startDate': oldStartDateStr,
+            'endDate': oldEndDateStr,
+            'period': budget['period'] as String? ?? 'MONTHLY',
+          };
+        }
+      }
+
+      return null;
+    } catch (e) {
+      // Nếu có lỗi, cho phép tạo budget (không block)
+      return null;
+    }
+  }
+
+  /// Hiển thị dialog cảnh báo budget trùng lặp
+  /// Returns: 'cancel', 'view_detail', hoặc 'continue'
+  Future<String> _showOverlappingBudgetDialog(
+    BuildContext context,
+    Map<String, dynamic> overlappingBudget,
+  ) async {
+    final theme = Theme.of(context);
+    final categoryName = overlappingBudget['categoryName'] as String;
+    final limitAmount = overlappingBudget['limitAmount'] as num;
+    final spentAmount = overlappingBudget['spentAmount'] as num;
+    final startDateStr = overlappingBudget['startDate'] as String;
+    final endDateStr = overlappingBudget['endDate'] as String?;
+    final period = overlappingBudget['period'] as String;
+    final budgetId = overlappingBudget['id'] as String;
+
+    String _formatCurrency(num amount) {
+      if (amount >= 1000000) {
+        return '${(amount / 1000000).toStringAsFixed(1)}M ₫';
+      } else if (amount >= 1000) {
+        return '${(amount / 1000).toStringAsFixed(0)}K ₫';
+      }
+      return '${amount.toStringAsFixed(0)} ₫';
+    }
+
+    String _formatDate(String dateStr) {
+      final date = DateTime.parse(dateStr);
+      return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    }
+
+    String _getPeriodLabel(String period) {
+      switch (period) {
+        case 'MONTHLY':
+          return 'Hàng tháng';
+        case 'WEEKLY':
+          return 'Hàng tuần';
+        case 'YEARLY':
+          return 'Hàng năm';
+        default:
+          return period;
+      }
+    }
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 24),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                'Ngân sách đã tồn tại',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gray900,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: Icon(Icons.close, color: AppColors.gray600, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => Navigator.of(context).pop('cancel'),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+              'Danh mục "$categoryName" đã có ngân sách đang diễn ra trong khoảng thời gian này.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.gray700,
+                  ),
+                ),
+            const SizedBox(height: AppSpacing.md),
+            // Hiển thị thông tin budget trùng lặp với hiệu ứng nổi bật
+                Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: AppColors.warning.withValues(alpha: 0.3),
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        'Ngân sách hiện tại:',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Hạn mức: ${_formatCurrency(limitAmount)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  Text(
+                    'Đã chi: ${_formatCurrency(spentAmount)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  Text(
+                    'Thời gian: ${_formatDate(startDateStr)} - ${endDateStr != null ? _formatDate(endDateStr) : "Không giới hạn"}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  Text(
+                    'Chu kỳ: ${_getPeriodLabel(period)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'Bạn có muốn xem chi tiết ngân sách này để chỉnh sửa hoặc xóa không?',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.gray600,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop('view_detail'); // Đóng dialog này
+              // Navigate đến budget detail
+              final budgetData = await _loadBudgetDetail(budgetId);
+              if (context.mounted) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => BudgetDetailScreen(budget: budgetData),
+                  ),
+                );
+              }
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.warning,
+            ),
+            child: const Text('Xem chi tiết'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop('continue'), // Cho phép tiếp tục tạo
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Tiếp tục'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? 'cancel';
+  }
+
+  /// Load budget detail để hiển thị
+  Future<Map<String, dynamic>> _loadBudgetDetail(String budgetId) async {
+    final user = _getCurrentUser();
+    if (user == null) throw StateError('Chưa đăng nhập');
+
+    // Load budget
+    final budgetRes = await SupabaseConfig.client
+        .from('budgets')
+        .select('*')
+        .eq('id', budgetId)
+        .single();
+
+    // Load category
+    final categoryId = budgetRes['category_id'] as String?;
+    if (categoryId == null) throw StateError('Budget không có category');
+
+    final categoryRes = await SupabaseConfig.client
+        .from('categories')
+        .select('name, icon, color')
+        .eq('id', categoryId)
+        .single();
+
+    // Parse color và icon
+    Color? color;
+    IconData? icon;
+    final categoryName = categoryRes['name'] as String? ?? '';
+    final categoryIcon = categoryRes['icon'] as String?;
+    final categoryColor = categoryRes['color'] as String?;
+
+    // Lấy default category nếu có
+    final defaultCategories = _getDefaultExpenseCategories();
+    final normalizedName = categoryName.toLowerCase().trim();
+    final defaultCategory = defaultCategories[normalizedName];
+
+    if (defaultCategory != null) {
+      icon = defaultCategory['icon'] as IconData;
+      color = defaultCategory['color'] as Color;
+    } else if (categoryIcon != null && categoryColor != null) {
+      try {
+        color = Color(
+          int.parse(categoryColor.replaceAll('#', ''), radix: 16) + 0xFF000000,
+        );
+      } catch (_) {
+        color = AppColors.gray500;
+      }
+      icon = _getIconFromString(categoryIcon);
+    } else {
+      icon = Icons.category;
+      color = AppColors.gray500;
+    }
+
+    return {
+      'id': budgetRes['id'] as String,
+      'name': categoryName,
+      'categoryId': categoryId,
+      'limit': (budgetRes['limit_amount'] as num?)?.toDouble() ?? 0.0,
+      'spent': (budgetRes['spent_amount'] as num?)?.toDouble() ?? 0.0,
+      'period': budgetRes['period'] as String? ?? 'MONTHLY',
+      'startDate': budgetRes['start_date'] as String?,
+      'endDate': budgetRes['end_date'] as String?,
+      'isActive': budgetRes['is_active'] as bool? ?? true,
+      'icon': icon,
+      'color': color,
+    };
+  }
+
+  Map<String, Map<String, dynamic>> _getDefaultExpenseCategories() {
+    return {
+      'chợ, siêu thị': {
+        'icon': Icons.shopping_bag_outlined,
+        'color': const Color(0xFFFFB74D),
+      },
+      'ăn uống': {
+        'icon': Icons.restaurant_outlined,
+        'color': const Color(0xFFFFE651),
+      },
+      'di chuyển': {
+        'icon': Icons.directions_car_outlined,
+        'color': const Color(0xFF42A5F5),
+      },
+      'mua sắm': {
+        'icon': Icons.shopping_cart_outlined,
+        'color': const Color(0xFFEC407A),
+      },
+      'giải trí': {
+        'icon': Icons.card_giftcard_outlined,
+        'color': const Color(0xFFAB47BC),
+      },
+    };
+  }
+
+  IconData _getIconFromString(String? iconName) {
+    if (iconName == null || iconName.isEmpty) return Icons.category;
+    switch (iconName.toLowerCase()) {
+      case 'shopping_bag':
+      case 'shopping_bag_outlined':
+        return Icons.shopping_bag_outlined;
+      case 'restaurant':
+      case 'restaurant_outlined':
+        return Icons.restaurant_outlined;
+      case 'directions_car':
+      case 'directions_car_outlined':
+        return Icons.directions_car_outlined;
+      case 'shopping_cart':
+      case 'shopping_cart_outlined':
+        return Icons.shopping_cart_outlined;
+      case 'card_giftcard':
+      case 'card_giftcard_outlined':
+        return Icons.card_giftcard_outlined;
+      default:
+        return Icons.category;
+    }
+  }
+
+  Widget _buildBudgetModeCard({
+    required BuildContext context,
+    required String mode,
+    required String title,
+    required String subtitle,
+    required String description,
+    required IconData icon,
+    required Color color,
+  }) {
+    final theme = Theme.of(context);
+    final isSelected = _selectedBudgetMode == mode;
+
+    return GestureDetector(
+                          onTap: () {
+                            setState(() {
+          _selectedBudgetMode = mode;
+                            });
+                          },
+                          child: Container(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+                            decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.08)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: isSelected ? color : AppColors.gray300,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.lg),
+            // Content
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                  Text(
+                        title,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? color : AppColors.gray900,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                      ),
+                            child: Text(
+                          subtitle,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: color,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    description,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.gray600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Check icon
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                color: color,
+                size: 24,
+              )
+            else
+              Icon(
+                Icons.radio_button_unchecked,
+                color: AppColors.gray300,
+                size: 24,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isValid = _limitController.text.isNotEmpty &&
-        ((_budgetType == 'category' && _selectedCategoryId != null) ||
-            (_budgetType == 'jar' && _selectedJarId != null));
+        _selectedCategoryId != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tạo ngân sách'),
+        title: Text(_isEditMode ? 'Chỉnh sửa ngân sách' : 'Tạo ngân sách'),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -264,89 +841,9 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Loại ngân sách (Danh mục/Hũ)
-                Text(
-                  'Loại ngân sách*',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.gray700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.gray100,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _budgetType = 'category';
-                              _selectedJarId = null;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                            decoration: BoxDecoration(
-                              color: _budgetType == 'category'
-                                  ? AppColors.primaryLight
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'Theo danh mục',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: _budgetType == 'category'
-                                    ? AppColors.gray900
-                                    : AppColors.gray400,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _budgetType = 'jar';
-                              _selectedCategoryId = null;
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-                            decoration: BoxDecoration(
-                              color: _budgetType == 'jar'
-                                  ? AppColors.primaryLight
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              'Theo hũ',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: _budgetType == 'jar'
-                                    ? AppColors.gray900
-                                    : AppColors.gray400,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-
-                // Chọn danh mục hoặc hũ
-                if (_budgetType == 'category') ...[
+                // Chọn danh mục
                   Text(
-                    'Danh mục*',
+                  'Danh mục*',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: AppColors.gray700,
                       fontWeight: FontWeight.w500,
@@ -354,7 +851,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   GestureDetector(
-                    onTap: _pickCategory,
+                  onTap: _pickCategory,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.lg,
@@ -367,13 +864,13 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.category_outlined, color: AppColors.gray700),
+                        const Icon(Icons.category_outlined, color: AppColors.gray700),
                           const SizedBox(width: AppSpacing.lg),
                           Expanded(
                             child: Text(
-                              _selectedCategoryName ?? 'Chọn danh mục',
+                            _selectedCategoryName ?? 'Chọn danh mục',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: _selectedCategoryName == null
+                              color: _selectedCategoryName == null
                                     ? AppColors.gray400
                                     : AppColors.gray900,
                               ),
@@ -384,48 +881,6 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                       ),
                     ),
                   ),
-                ] else ...[
-                  Text(
-                    'Hũ*',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.gray700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  GestureDetector(
-                    onTap: _pickJar,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.lg,
-                        vertical: AppSpacing.lg,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(color: AppColors.gray300),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.account_balance_wallet_outlined,
-                              color: AppColors.gray700),
-                          const SizedBox(width: AppSpacing.lg),
-                          Expanded(
-                            child: Text(
-                              _selectedJarName ?? 'Chọn hũ',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: _selectedJarName == null
-                                    ? AppColors.gray400
-                                    : AppColors.gray900,
-                              ),
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right, color: AppColors.gray400),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
                 const SizedBox(height: AppSpacing.xl),
 
                 // Số tiền giới hạn
@@ -501,6 +956,8 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                             setState(() {
                               _selectedPeriod = 'WEEKLY';
                             });
+                            // Tự động tính toán ngày kết thúc khi chọn chu kỳ
+                            _calculateEndDate();
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -529,6 +986,8 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                             setState(() {
                               _selectedPeriod = 'MONTHLY';
                             });
+                            // Tự động tính toán ngày kết thúc khi chọn chu kỳ
+                            _calculateEndDate();
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -557,6 +1016,8 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                             setState(() {
                               _selectedPeriod = 'YEARLY';
                             });
+                            // Tự động tính toán ngày kết thúc khi chọn chu kỳ
+                            _calculateEndDate();
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -581,6 +1042,49 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                       ),
                     ],
                   ),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+
+                // Chế độ ngân sách
+                Text(
+                  'Chế độ ngân sách',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.gray700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Nhắc nhở
+                _buildBudgetModeCard(
+                  context: context,
+                  mode: 'reminder',
+                  title: 'Nhắc nhở',
+                  subtitle: 'Nhẹ nhàng',
+                  description: 'Cảnh báo nhẹ, vẫn cho phép thêm giao dịch',
+                  icon: Icons.notifications_outlined,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Cảnh báo
+                _buildBudgetModeCard(
+                  context: context,
+                  mode: 'warning',
+                  title: 'Cảnh báo',
+                  subtitle: 'Vừa phải',
+                  description: 'Yêu cầu xác nhận và ghi lý do khi vượt 100%',
+                  icon: Icons.warning_amber_rounded,
+                  color: AppColors.warning,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                // Nghiêm ngặt
+                _buildBudgetModeCard(
+                  context: context,
+                  mode: 'strict',
+                  title: 'Nghiêm ngặt',
+                  subtitle: 'Mạnh mẽ',
+                  description: 'Tự động tạm dừng khi đạt 100%, yêu cầu lý do bắt buộc',
+                  icon: Icons.lock_outline,
+                  color: AppColors.error,
                 ),
                 const SizedBox(height: AppSpacing.xl),
 
@@ -683,7 +1187,9 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                       disabledForegroundColor: AppColors.gray500,
                     ),
                     child: Text(
-                      _isCreating ? 'Đang tạo...' : 'Tạo ngân sách',
+                      _isCreating 
+                        ? (_isEditMode ? 'Đang cập nhật...' : 'Đang tạo...')
+                        : (_isEditMode ? 'Cập nhật ngân sách' : 'Tạo ngân sách'),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
